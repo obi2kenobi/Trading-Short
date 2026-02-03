@@ -54,6 +54,12 @@ useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=
 useVolumeFilter = input.bool(true, "Richiedi Volume Alto", group=grpFilter)
 useLateralFilter = input.bool(true, "Evita Mercati Laterali", group=grpFilter)
 
+grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
+useBearMode = input.bool(true, "Abilita SHORT BEAR mode", group=grpBearMode)
+bearMinFear = input.float(12.0, "Fear Index minimo per BEAR %", minval=0, maxval=30, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura")
+bearMinRedBars = input.int(2, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
+cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
+
 grpIndicators = "═══ INDICATORI ═══"
 temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndicators)
 temaLen_out = input.int(24, "TEMA OUT Period", minval=10, maxval=50, group=grpIndicators)
@@ -242,15 +248,44 @@ bearOK = useBearFilter ? isBearMarket : true
 volOK = useVolumeFilter ? highVolume : true
 latOK = useLateralFilter ? not isLateral : true
 
-// CONDIZIONE SHORT STANDARD
-shortStandard = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and latOK and volOK and bearOK
+// ═══════════════════════════════════════════════════════════════════════════════
+// COOLDOWN & BEAR MODE FILTERS
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri)
-shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
+// Track ultima uscita per cooldown
+var int lastExitBar = 0
+inShort = strategy.position_size < 0
+
+// Aggiorna lastExitBar quando usciamo da posizione
+if inShort[1] and not inShort
+    lastExitBar := bar_index
+
+// Cooldown attivo?
+barsSinceExit = bar_index - lastExitBar
+cooldownOK = barsSinceExit >= cooldownBars
+
+// Conta candele rosse consecutive (per BEAR mode)
+redBarsCount = 0
+redBarsCount := close_tf < open_tf ? redBarsCount[1] + 1 : 0
+hasEnoughRedBars = redBarsCount >= bearMinRedBars
+
+// Fear Index minimo per BEAR
+fearOK_bear = fearIndex >= bearMinFear
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTRY SIGNALS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// CONDIZIONE SHORT STANDARD (BEAR) - ora molto più restrittiva
+shortBearConditions = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and latOK and volOK and bearOK
+shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK
+shortStandard = useBearMode and shortBearConditions and shortBearFilters
+
+// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri, ma rispetta cooldown)
+shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike and cooldownOK
 
 // CONDIZIONE SHORT FINALE
 shortOK = shortStandard or shortPanic
-inShort = strategy.position_size < 0
 
 // Entry
 if not inShort and shortOK
@@ -537,12 +572,17 @@ if showDashboard
         table.cell(dashboard, 0, 11, "TEMA Slope:", text_color=color.gray, text_size=size.small)
         table.cell(dashboard, 1, 11, isTemaFalling ? "FALLING" : "RISING", text_color=isTemaFalling ? color.red : color.green, text_size=size.small)
 
-        table.cell(dashboard, 0, 12, "Dist ATR:", text_color=color.gray, text_size=size.small)
-        distColor = distATR <= maxDistATR ? color.green : color.red
-        table.cell(dashboard, 1, 12, str.tostring(distATR, "#.##"), text_color=distColor, text_size=size.small)
+        // Cooldown status
+        cooldownText = cooldownOK ? "OK" : str.tostring(cooldownBars - barsSinceExit) + " bars"
+        cooldownColor = cooldownOK ? color.green : color.orange
+        table.cell(dashboard, 0, 12, "Cooldown:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 12, cooldownText, text_color=cooldownColor, text_size=size.small)
 
-        table.cell(dashboard, 0, 13, "Lateral:", text_color=color.gray, text_size=size.small)
-        table.cell(dashboard, 1, 13, isLateral ? "YES" : "NO", text_color=isLateral ? color.red : color.green, text_size=size.small)
+        // Red bars count (per BEAR)
+        redBarsText = str.tostring(redBarsCount) + "/" + str.tostring(bearMinRedBars)
+        redBarsColor = hasEnoughRedBars ? color.green : color.gray
+        table.cell(dashboard, 0, 13, "Red Bars:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 13, redBarsText, text_color=redBarsColor, text_size=size.small)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
