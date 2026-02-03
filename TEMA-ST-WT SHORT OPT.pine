@@ -49,6 +49,11 @@ panicBarATRmult = input.float(1.5, "Panic Bar Size (ATR mult)", minval=1.0, maxv
 rsiPanicLevel = input.int(35, "RSI Panic Threshold", minval=20, maxval=45, group=grpPanic)
 usePanicMode = input.bool(true, "Abilita Panic Mode Aggressivo", group=grpPanic)
 
+grpFilter = "═══ FILTRI MERCATO ═══"
+useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=grpFilter, tooltip="Se disattivato, opera anche in bull market")
+useVolumeFilter = input.bool(true, "Richiedi Volume Alto", group=grpFilter)
+useLateralFilter = input.bool(true, "Evita Mercati Laterali", group=grpFilter)
+
 grpIndicators = "═══ INDICATORI ═══"
 temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndicators)
 temaLen_out = input.int(24, "TEMA OUT Period", minval=10, maxval=50, group=grpIndicators)
@@ -229,11 +234,16 @@ isLateral  = isFlatSlope and rangeCond and not isPanicMode
 activeVolMult = isPanicMode ? 0.8 : (isBearMarket ? 1.0 : 1.2)
 highVolume = vol_tf > volMA20 * activeVolMult
 
-// CONDIZIONE SHORT STANDARD
-shortStandard = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and not isLateral and highVolume and isBearMarket
+// Filtri condizionali
+bearOK = useBearFilter ? isBearMarket : true
+volOK = useVolumeFilter ? highVolume : true
+latOK = useLateralFilter ? not isLateral : true
 
-// CONDIZIONE SHORT PANIC (più aggressiva)
-shortPanic = isPanicMode and isBearMarket and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
+// CONDIZIONE SHORT STANDARD
+shortStandard = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and latOK and volOK and bearOK
+
+// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri)
+shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
 
 // CONDIZIONE SHORT FINALE
 shortOK = shortStandard or shortPanic
@@ -429,7 +439,7 @@ if showLabels and inShort
 // ═══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard
-    var table dashboard = table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 80), border_width=1)
+    var table dashboard = table.new(position.bottom_right, 2, 14, bgcolor=color.new(color.black, 80), border_width=1)
 
     // Header
     table.cell(dashboard, 0, 0, "PANIC HUNTER v3.0", text_color=color.white, text_size=size.normal, bgcolor=color.new(color.purple, 60))
