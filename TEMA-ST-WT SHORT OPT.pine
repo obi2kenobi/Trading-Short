@@ -230,20 +230,10 @@ activeVolMult = isPanicMode ? 0.8 : (isBearMarket ? 1.0 : 1.2)
 highVolume = vol_tf > volMA20 * activeVolMult
 
 // CONDIZIONE SHORT STANDARD
-shortStandard = (trend_in == -1) and
-                wtDown and
-                isTemaFalling and
-                (distATR <= maxDistATR) and
-                not isLateral and
-                highVolume and
-                isBearMarket
+shortStandard = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and not isLateral and highVolume and isBearMarket
 
 // CONDIZIONE SHORT PANIC (più aggressiva)
-shortPanic = isPanicMode and
-             isBearMarket and
-             (trend_in == -1 or isPanicBar) and
-             (wtDown or isRsiPanic) and
-             isVolSpike
+shortPanic = isPanicMode and isBearMarket and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
 
 // CONDIZIONE SHORT FINALE
 shortOK = shortStandard or shortPanic
