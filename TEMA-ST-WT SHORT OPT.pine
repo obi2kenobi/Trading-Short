@@ -63,11 +63,13 @@ maxDistATR = input.float(1.8, "Max Distance ATR", minval=0.5, maxval=3.0, step=0
 
 grpVisual = "═══ VISUALIZZAZIONE ═══"
 showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
+compactLabels = input.bool(true, "Labels compatte", group=grpVisual, tooltip="Mostra solo info essenziali nelle label")
+labelSize = input.string("small", "Dimensione labels", options=["tiny", "small", "normal"], group=grpVisual)
 showDashboard = input.bool(true, "Mostra dashboard", group=grpVisual)
 showLevels = input.bool(true, "Mostra livelli SL/TP", group=grpVisual)
 showBearFilter = input.bool(true, "Mostra TEMA 200 HTF", group=grpVisual)
-showPanicZones = input.bool(true, "Evidenzia zone panic", group=grpVisual)
-labelOffsetATR = input.float(2.0, "Distanza Labels (ATR multiplier)", minval=0.5, maxval=5.0, step=0.5, group=grpVisual, tooltip="Distanza delle label dalle candele in multipli di ATR")
+showPanicZones = input.bool(false, "Evidenzia zone panic", group=grpVisual)
+labelOffsetATR = input.float(3.0, "Distanza Labels (ATR multiplier)", minval=1.0, maxval=8.0, step=0.5, group=grpVisual, tooltip="Distanza delle label dalle candele in multipli di ATR")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILTRO BEAR MARKET
@@ -391,48 +393,60 @@ plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.ab
 // Calcolo offset per labels
 labelOffset = atr14 * labelOffsetATR
 
+// Dimensione label dinamica
+lblSize = labelSize == "tiny" ? size.tiny : (labelSize == "small" ? size.small : size.normal)
+
 if showLabels
     // Entry label (sopra le candele con offset)
     if shortOK and not inShort
-        modeText = shortPanic ? "PANIC MODE" : (isBearMarket ? "BEAR MODE" : "NORMAL")
+        modeText = shortPanic ? "PANIC" : (isBearMarket ? "BEAR" : "STD")
         labelColor = shortPanic ? color.orange : color.red
-        label.new(bar_index, high_tf + labelOffset,
-             text="SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
+
+        // Testo compatto o completo
+        entryText = compactLabels ?
+             "SHORT " + modeText + "\n" + str.tostring(close_tf, "#.##") :
+             "SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
                   "\nSL: " + str.tostring(stopPrice, "#.##") +
-                  "\nTP1: " + str.tostring(tp1Price, "#.##") +
-                  "\nTP3: " + str.tostring(tp3Price, "#.##") +
-                  "\nFear: " + str.tostring(fearIndex, "#") + "%",
+                  "\nTP3: " + str.tostring(tp3Price, "#.##")
+
+        label.new(bar_index, high_tf + labelOffset,
+             text=entryText,
              style=label.style_label_down,
              color=labelColor,
              textcolor=color.white,
-             size=size.normal)
+             size=lblSize)
 
     // Exit label (sotto le candele con offset)
     if exit_bar
         profitPct = ((entryPrice - close_tf) / entryPrice) * 100
         profitColor = profitPct > 0 ? color.green : color.red
-        exitType = emergencyExit ? "EMERGENCY EXIT" : "COVER"
+        exitType = emergencyExit ? "EXIT!" : "Cover"
+
+        // Testo compatto o completo
+        exitText = compactLabels ?
+             exitType + " " + str.tostring(profitPct, "#.#") + "%" :
+             exitType + "\n" + str.tostring(close_tf, "#.##") +
+                  "\nP&L: " + str.tostring(profitPct, "#.##") + "%"
+
         label.new(bar_index, low_tf - labelOffset,
-             text=exitType + "\nExit: " + str.tostring(close_tf, "#.##") +
-                  "\nP&L: " + str.tostring(profitPct, "#.##") + "%" +
-                  "\nBars: " + str.tostring(bar_index - entryBar),
+             text=exitText,
              style=label.style_label_up,
              color=profitColor,
              textcolor=color.white,
-             size=size.normal)
+             size=lblSize)
 
-// TP hit labels (sotto le candele con offset ridotto)
-if showLabels and inShort
+// TP hit labels - solo se non compatte
+if showLabels and not compactLabels and inShort
     if tp1_hit and not tp1_hit[1]
         label.new(bar_index, low_tf - labelOffset * 0.5,
-             text="TP1 HIT\n" + str.tostring(tp1_perc * 100, "#.#") + "%",
+             text="TP1",
              style=label.style_label_up,
              color=color.new(color.green, 30),
              textcolor=color.white,
              size=size.tiny)
     if tp2_hit and not tp2_hit[1]
         label.new(bar_index, low_tf - labelOffset * 0.5,
-             text="TP2 HIT\n" + str.tostring(tp2_perc * 100, "#.#") + "%",
+             text="TP2",
              style=label.style_label_up,
              color=color.new(color.green, 20),
              textcolor=color.white,
