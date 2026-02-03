@@ -67,6 +67,7 @@ showDashboard = input.bool(true, "Mostra dashboard", group=grpVisual)
 showLevels = input.bool(true, "Mostra livelli SL/TP", group=grpVisual)
 showBearFilter = input.bool(true, "Mostra TEMA 200 HTF", group=grpVisual)
 showPanicZones = input.bool(true, "Evidenzia zone panic", group=grpVisual)
+labelOffsetATR = input.float(2.0, "Distanza Labels (ATR multiplier)", minval=0.5, maxval=5.0, step=0.5, group=grpVisual, tooltip="Distanza delle label dalle candele in multipli di ATR")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILTRO BEAR MARKET
@@ -387,12 +388,15 @@ plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.ab
 // LABELS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Calcolo offset per labels
+labelOffset = atr14 * labelOffsetATR
+
 if showLabels
-    // Entry label
+    // Entry label (sopra le candele con offset)
     if shortOK and not inShort
         modeText = shortPanic ? "PANIC MODE" : (isBearMarket ? "BEAR MODE" : "NORMAL")
         labelColor = shortPanic ? color.orange : color.red
-        label.new(bar_index, high_tf,
+        label.new(bar_index, high_tf + labelOffset,
              text="SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
                   "\nSL: " + str.tostring(stopPrice, "#.##") +
                   "\nTP1: " + str.tostring(tp1Price, "#.##") +
@@ -403,12 +407,12 @@ if showLabels
              textcolor=color.white,
              size=size.normal)
 
-    // Exit label
+    // Exit label (sotto le candele con offset)
     if exit_bar
         profitPct = ((entryPrice - close_tf) / entryPrice) * 100
         profitColor = profitPct > 0 ? color.green : color.red
         exitType = emergencyExit ? "EMERGENCY EXIT" : "COVER"
-        label.new(bar_index, low_tf,
+        label.new(bar_index, low_tf - labelOffset,
              text=exitType + "\nExit: " + str.tostring(close_tf, "#.##") +
                   "\nP&L: " + str.tostring(profitPct, "#.##") + "%" +
                   "\nBars: " + str.tostring(bar_index - entryBar),
@@ -417,17 +421,17 @@ if showLabels
              textcolor=color.white,
              size=size.normal)
 
-// TP hit labels
+// TP hit labels (sotto le candele con offset ridotto)
 if showLabels and inShort
     if tp1_hit and not tp1_hit[1]
-        label.new(bar_index, low_tf,
+        label.new(bar_index, low_tf - labelOffset * 0.5,
              text="TP1 HIT\n" + str.tostring(tp1_perc * 100, "#.#") + "%",
              style=label.style_label_up,
              color=color.new(color.green, 30),
              textcolor=color.white,
              size=size.tiny)
     if tp2_hit and not tp2_hit[1]
-        label.new(bar_index, low_tf,
+        label.new(bar_index, low_tf - labelOffset * 0.5,
              text="TP2 HIT\n" + str.tostring(tp2_perc * 100, "#.#") + "%",
              style=label.style_label_up,
              color=color.new(color.green, 20),
