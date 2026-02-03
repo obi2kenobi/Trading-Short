@@ -1,75 +1,176 @@
 //@version=6
 // ──────────────────────────────────────────────────────────────────────────────
-// @title        TEMA-ST-WT SHORT OPTIMIZED v2.1
-// @description  Short reattivo in bear market con filtri adattivi
-// @version      2.1
+// @title        TEMA-ST-WT PANIC HUNTER v3.0
+// @description  Short aggressivo ottimizzato per catturare il panico di mercato
+//               Trailing stop dinamico, partial exits, panic detection avanzato
+// @version      3.0
+// @author       Ottimizzato per velocità e profitto
 // ──────────────────────────────────────────────────────────────────────────────
 
 // — INPUT TIMEFRAME —
-tf = input.string("120", "Timeframe operativo", options = ["120","240","D"])
-tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"], tooltip="Short SOLO se sotto TEMA 200 su questo TF")
+tf = input.string("120", "Timeframe operativo", options = ["60","120","240","D"])
+tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"])
 
 // — DATI MULTITF —
-[close_tf, high_tf, low_tf, hl2_tf, hlc3_tf, vol_tf] = request.security(syminfo.tickerid, tf, [close, high, low, hl2, hlc3, volume])
+[close_tf, high_tf, low_tf, hl2_tf, hlc3_tf, vol_tf, open_tf] = request.security(syminfo.tickerid, tf, [close, high, low, hl2, hlc3, volume, open])
 close_htf = request.security(syminfo.tickerid, tf_filter, close)
 
 // — STRATEGY SETTINGS —
-strategy("TEMA-ST-WT SHORT OPT v2.1", overlay=true,
+strategy("TEMA-ST-WT PANIC HUNTER v3.0", overlay=true,
      initial_capital    = 100000,
      default_qty_type   = strategy.percent_of_equity,
      default_qty_value  = 100,
      pyramiding         = 0,
      commission_type    = strategy.commission.percent,
-     commission_value   = 0.01)
+     commission_value   = 0.01,
+     calc_on_every_tick = true)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUT PARAMETERS - RISK MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+grpRisk = "═══ RISK MANAGEMENT ═══"
+stopPerc_normal = input.float(2.0, "Stop Loss Normale %", minval=0.5, maxval=5.0, step=0.1, group=grpRisk) / 100
+stopPerc_panic = input.float(1.2, "Stop Loss Panic Mode %", minval=0.3, maxval=3.0, step=0.1, group=grpRisk) / 100
+useTrailingStop = input.bool(true, "Usa Trailing Stop", group=grpRisk)
+trailATRmult = input.float(1.5, "Trailing Stop ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpRisk)
+
+grpTP = "═══ TAKE PROFIT SCALATO ═══"
+usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
+tp1_perc = input.float(2.5, "TP1 %", minval=1.0, maxval=5.0, step=0.5, group=grpTP) / 100
+tp1_size = input.float(40, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP) / 100
+tp2_perc = input.float(5.0, "TP2 %", minval=2.0, maxval=10.0, step=0.5, group=grpTP) / 100
+tp2_size = input.float(35, "TP2 Size %", minval=10, maxval=50, step=5, group=grpTP) / 100
+tp3_perc = input.float(8.0, "TP3 % (finale)", minval=3.0, maxval=15.0, step=0.5, group=grpTP) / 100
+
+grpPanic = "═══ PANIC DETECTION ═══"
+volSpikeMultiplier = input.float(2.0, "Volume Spike Multiplier", minval=1.5, maxval=4.0, step=0.1, group=grpPanic)
+panicBarATRmult = input.float(1.5, "Panic Bar Size (ATR mult)", minval=1.0, maxval=3.0, step=0.1, group=grpPanic)
+rsiPanicLevel = input.int(35, "RSI Panic Threshold", minval=20, maxval=45, group=grpPanic)
+usePanicMode = input.bool(true, "Abilita Panic Mode Aggressivo", group=grpPanic)
+
+grpIndicators = "═══ INDICATORI ═══"
+temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndicators)
+temaLen_out = input.int(24, "TEMA OUT Period", minval=10, maxval=50, group=grpIndicators)
+stFactor_in = input.float(2.4, "Supertrend IN Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
+stFactor_out = input.float(2.2, "Supertrend OUT Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
+maxDistATR = input.float(1.8, "Max Distance ATR", minval=0.5, maxval=3.0, step=0.1, group=grpIndicators)
+
+grpVisual = "═══ VISUALIZZAZIONE ═══"
+showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
+showDashboard = input.bool(true, "Mostra dashboard", group=grpVisual)
+showLevels = input.bool(true, "Mostra livelli SL/TP", group=grpVisual)
+showBearFilter = input.bool(true, "Mostra TEMA 200 HTF", group=grpVisual)
+showPanicZones = input.bool(true, "Evidenzia zone panic", group=grpVisual)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILTRO BEAR MARKET
 // ═══════════════════════════════════════════════════════════════════════════════
 
 tema200_htf = request.security(syminfo.tickerid, tf_filter, 3*ta.ema(close, 200) - 3*ta.ema(ta.ema(close, 200), 200) + ta.ema(ta.ema(ta.ema(close, 200), 200), 200))
+ema50_htf = request.security(syminfo.tickerid, tf_filter, ta.ema(close, 50))
+
+// Bear market confermato: prezzo sotto TEMA200 E EMA50 sotto TEMA200
 isBearMarket = close_htf < tema200_htf
+isStrongBear = isBearMarket and ema50_htf < tema200_htf
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PARAMETRI BASE
+// PARAMETRI INTERNI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-temaLen_in   = 32
-stFactor_in  = 2.6
-maxDistATR   = 1.4
-temaLen_out  = 34
-stFactor_out = 2.8
-wtN2_in      = 21
-stopPerc     = 2.5 / 100
-tpPerc       = 8.0 / 100
-
-stPeriod_in  = 10
-wtN1_in      = 10
-stPeriod_out = 10
-wtN1_out     = 10
-wtN2_out     = 21
-
-// PARAMETRI ADATTIVI (si alleggeriscono in bear market)
-var float volMultiplier = 1.3
-var float slopeThreshold = 0.01
-
-// Opzioni visualizzazione
-showLabels   = input.bool(true, "Mostra labels trade")
-showDashboard = input.bool(true, "Mostra dashboard")
-showLevels   = input.bool(true, "Mostra livelli SL/TP")
-showBearFilter = input.bool(true, "Mostra TEMA 200 HTF")
+stPeriod = 10
+wtN1 = 10
+wtN2 = 21
+rsiLen = 14
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// INDICATORS
+// PANIC DETECTION MODULE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// TEMA IN / OUT
+// ATR per misurazioni
+atr14 = ta.atr(14)
+atr10 = ta.atr(10)
+
+// 1. VOLUME SPIKE DETECTION
+volMA20 = ta.sma(vol_tf, 20)
+volMA5 = ta.sma(vol_tf, 5)
+isVolSpike = vol_tf > volMA20 * volSpikeMultiplier
+isVolAccelerating = volMA5 > volMA20 * 1.3
+
+// 2. PANIC BAR DETECTION (candele di panico)
+candleBody = math.abs(close_tf - open_tf)
+candleRange = high_tf - low_tf
+isBearishCandle = close_tf < open_tf
+isPanicBar = isBearishCandle and candleBody > atr14 * panicBarATRmult and candleBody > candleRange * 0.7
+
+// 3. RSI CRASH DETECTION
+rsi = ta.rsi(close_tf, rsiLen)
+rsi_prev = ta.rsi(close_tf[1], rsiLen)
+isRsiPanic = rsi < rsiPanicLevel
+isRsiCrashing = rsi < rsi_prev - 5 and rsi < 50  // RSI in caduta rapida
+
+// 4. PRICE VELOCITY (accelerazione discesa)
+priceChange1 = (close_tf - close_tf[1]) / close_tf[1] * 100
+priceChange3 = (close_tf - close_tf[3]) / close_tf[3] * 100
+isPriceAccelerating = priceChange1 < -0.5 and priceChange3 < -1.5
+
+// 5. GAP DOWN DETECTION
+gapDown = open_tf < low_tf[1]
+significantGap = gapDown and (low_tf[1] - open_tf) > atr14 * 0.5
+
+// 6. CONSECUTIVE RED BARS
+redBar = close_tf < open_tf
+consecutiveRed = redBar and redBar[1] and redBar[2]
+
+// PANIC SCORE (0-100)
+panicScore = 0
+panicScore := panicScore + (isVolSpike ? 20 : 0)
+panicScore := panicScore + (isPanicBar ? 25 : 0)
+panicScore := panicScore + (isRsiPanic ? 15 : 0)
+panicScore := panicScore + (isRsiCrashing ? 10 : 0)
+panicScore := panicScore + (isPriceAccelerating ? 15 : 0)
+panicScore := panicScore + (significantGap ? 10 : 0)
+panicScore := panicScore + (consecutiveRed ? 5 : 0)
+
+// PANIC MODE ATTIVO se score >= 40
+isPanicMode = panicScore >= 40 and usePanicMode
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEAR INDEX (indicatore interno di paura)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Volatility component
+atrNorm = atr14 / ta.sma(atr14, 50) * 100 - 100  // deviazione dalla media
+volComponent = math.min(50, math.max(0, atrNorm))
+
+// RSI component (inverted: lower RSI = more fear)
+rsiComponent = math.min(50, math.max(0, (50 - rsi)))
+
+// Volume component
+volRatio = vol_tf / volMA20
+volFearComponent = math.min(30, math.max(0, (volRatio - 1) * 30))
+
+// FEAR INDEX (0-100)
+fearIndex = (volComponent * 0.3 + rsiComponent * 0.4 + volFearComponent * 0.3)
+isHighFear = fearIndex > 35
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE INDICATORS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// TEMA IN / OUT (più veloci)
 tema_in  = 3*ta.ema(close_tf, temaLen_in) - 3*ta.ema(ta.ema(close_tf, temaLen_in), temaLen_in) + ta.ema(ta.ema(ta.ema(close_tf, temaLen_in), temaLen_in), temaLen_in)
 tema_out = 3*ta.ema(close_tf, temaLen_out) - 3*ta.ema(ta.ema(close_tf, temaLen_out), temaLen_out) + ta.ema(ta.ema(ta.ema(close_tf, temaLen_out), temaLen_out), temaLen_out)
 
+// TEMA Slope
+tema_slope = tema_in - tema_in[1]
+tema_slope_ma = ta.sma(tema_slope, 3)
+isTemaFalling = tema_slope < 0 and tema_slope_ma < 0
+isTemaAccelerating = tema_slope < tema_slope[1] and tema_slope < 0
+
 // Supertrend IN
-atr_in = ta.atr(stPeriod_in)
-upC_in = hl2_tf - stFactor_in * atr_in
-dnC_in = hl2_tf + stFactor_in * atr_in
+upC_in = hl2_tf - stFactor_in * atr10
+dnC_in = hl2_tf + stFactor_in * atr10
 var float _up_in = na
 var float _dn_in = na
 var int trend_in = 0
@@ -77,10 +178,9 @@ _up_in := close_tf[1] > nz(_up_in[1], upC_in) ? math.max(upC_in, nz(_up_in[1], u
 _dn_in := close_tf[1] < nz(_dn_in[1], dnC_in) ? math.min(dnC_in, nz(_dn_in[1], dnC_in)) : dnC_in
 trend_in := close_tf > _dn_in[1] ? 1 : close_tf < _up_in[1] ? -1 : nz(trend_in[1])
 
-// Supertrend OUT
-atr_out = ta.atr(stPeriod_out)
-upC_out = hl2_tf - stFactor_out * atr_out
-dnC_out = hl2_tf + stFactor_out * atr_out
+// Supertrend OUT (più sensibile per exit veloci)
+upC_out = hl2_tf - stFactor_out * atr10
+dnC_out = hl2_tf + stFactor_out * atr10
 var float _up_out = na
 var float _dn_out = na
 var int trend_out = 0
@@ -88,123 +188,200 @@ _up_out := close_tf[1] > nz(_up_out[1], upC_out) ? math.max(upC_out, nz(_up_out[
 _dn_out := close_tf[1] < nz(_dn_out[1], dnC_out) ? math.min(dnC_out, nz(_dn_out[1], dnC_out)) : dnC_out
 trend_out := close_tf > _dn_out[1] ? 1 : close_tf < _up_out[1] ? -1 : nz(trend_out[1])
 
-// WT IN
+// WT IN (Wave Trend)
 ap_in  = hlc3_tf
-esa_in = ta.ema(ap_in, wtN1_in)
-d_in   = ta.ema(math.abs(ap_in - esa_in), wtN1_in)
+esa_in = ta.ema(ap_in, wtN1)
+d_in   = ta.ema(math.abs(ap_in - esa_in), wtN1)
 ci_in  = (ap_in - esa_in) / (0.015 * d_in)
-wt1_in = ta.ema(ci_in, wtN2_in)
+wt1_in = ta.ema(ci_in, wtN2)
 wt2_in = ta.sma(wt1_in, 4)
 wtDown = wt1_in < wt2_in
+wtCrossDown = ta.crossunder(wt1_in, wt2_in)
 
 // WT OUT
 ap_out  = hlc3_tf
-esa_out = ta.ema(ap_out, wtN1_out)
-d_out   = ta.ema(math.abs(ap_out - esa_out), wtN1_out)
+esa_out = ta.ema(ap_out, wtN1)
+d_out   = ta.ema(math.abs(ap_out - esa_out), wtN1)
 ci_out  = (ap_out - esa_out) / (0.015 * d_out)
-wt1_out = ta.ema(ci_out, wtN2_out)
+wt1_out = ta.ema(ci_out, wtN2)
 wt2_out = ta.sma(wt1_out, 4)
-wtUp    = ta.crossover(wt1_out, wt2_out)
+wtUp = ta.crossover(wt1_out, wt2_out)
+wtBullish = wt1_out > wt2_out
 
-distATR = (tema_in - close_tf) / atr_in
+// Distance from TEMA
+distATR = (tema_in - close_tf) / atr10
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENTRY FILTERS ADATTIVI
+// ENTRY CONDITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-tema_slope = tema_in - tema_in[1]
-
-// FILTRI ADATTIVI: più permissivi in bear market confermato
-var bool tema_slope_negative = false
-var float activeVolMultiplier = volMultiplier
-var float activeSlopeThreshold = slopeThreshold
-
-if isBearMarket
-    // In bear market confermato: filtri alleggeriti
-    tema_slope_negative := tema_slope < 0  // qualsiasi pendenza negativa
-    activeVolMultiplier := 1.0  // volume normale accettato
-    activeSlopeThreshold := 0.015  // maggiore tolleranza lateralità
-else
-    // Fuori bear market: filtri severi
-    tema_slope_negative := tema_slope < -0.001
-    activeVolMultiplier := volMultiplier
-    activeSlopeThreshold := slopeThreshold
-
-// Filtro lateralità
-tema_slope_ratio = math.abs(tema_slope) / ta.atr(10)
+// Filtro lateralità (più permissivo in panic)
+tema_slope_ratio = math.abs(tema_slope) / atr10
+activeSlopeThreshold = isPanicMode ? 0.005 : (isBearMarket ? 0.012 : 0.015)
 isFlatSlope = tema_slope_ratio < activeSlopeThreshold
 
 rangeHigh5 = ta.highest(high_tf, 5)
 rangeLow5  = ta.lowest(low_tf, 5)
-rangeCond  = (rangeHigh5 - rangeLow5) / close_tf < 0.01
-isLateral  = isFlatSlope or rangeCond
+rangeCond  = (rangeHigh5 - rangeLow5) / close_tf < 0.008
+isLateral  = isFlatSlope and rangeCond and not isPanicMode
 
-// Filtro volume
-volMA = ta.sma(vol_tf, 20)
-highVolume = vol_tf > volMA * activeVolMultiplier
+// Filtro volume (più permissivo in panic)
+activeVolMult = isPanicMode ? 0.8 : (isBearMarket ? 1.0 : 1.2)
+highVolume = vol_tf > volMA20 * activeVolMult
+
+// CONDIZIONE SHORT STANDARD
+shortStandard = (trend_in == -1) and
+                wtDown and
+                isTemaFalling and
+                (distATR <= maxDistATR) and
+                not isLateral and
+                highVolume and
+                isBearMarket
+
+// CONDIZIONE SHORT PANIC (più aggressiva)
+shortPanic = isPanicMode and
+             isBearMarket and
+             (trend_in == -1 or isPanicBar) and
+             (wtDown or isRsiPanic) and
+             isVolSpike
 
 // CONDIZIONE SHORT FINALE
-shortOK = (trend_in == -1) and wtDown and tema_slope_negative and (distATR <= maxDistATR) and not isLateral and highVolume and isBearMarket
+shortOK = shortStandard or shortPanic
 inShort = strategy.position_size < 0
 
+// Entry
 if not inShort and shortOK
     strategy.entry("Short", strategy.short)
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// POSITION MANAGEMENT
+// POSITION MANAGEMENT & TRAILING STOP
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var float entryPrice = na
 var int entryBar = na
+var float trailStop = na
+var float lowestSinceEntry = na
+var bool tp1_hit = false
+var bool tp2_hit = false
+var string entryMode = ""
 
+// Reset on new position
 if inShort and not inShort[1]
     entryPrice := strategy.position_avg_price
     entryBar := bar_index
+    trailStop := entryPrice * (1 + (isPanicMode ? stopPerc_panic : stopPerc_normal))
+    lowestSinceEntry := close_tf
+    tp1_hit := false
+    tp2_hit := false
+    entryMode := isPanicMode ? "PANIC" : "STANDARD"
 
-stopPrice  = entryPrice * (1 + stopPerc)
-limitPrice = entryPrice * (1 - tpPerc)
+// Update trailing stop
+if inShort
+    lowestSinceEntry := math.min(lowestSinceEntry, low_tf)
 
-exit_wt    = wtUp
-exit_st    = trend_out == 1
-exit_tema  = close_tf > tema_out
-exit_count = (exit_wt ? 1 : 0) + (exit_st ? 1 : 0) + (exit_tema ? 1 : 0)
-shouldExit = exit_count >= 2
-exit_bar   = inShort and shouldExit
+    if useTrailingStop
+        // Trailing stop basato su ATR dal minimo
+        newTrailStop = lowestSinceEntry + atr14 * trailATRmult
+
+        // Il trailing stop può solo scendere (per short)
+        if newTrailStop < trailStop
+            trailStop := newTrailStop
+
+// Calcolo livelli
+activeStopPerc = isPanicMode ? stopPerc_panic : stopPerc_normal
+stopPrice = useTrailingStop ? trailStop : entryPrice * (1 + activeStopPerc)
+tp1Price = entryPrice * (1 - tp1_perc)
+tp2Price = entryPrice * (1 - tp2_perc)
+tp3Price = entryPrice * (1 - tp3_perc)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXIT CONDITIONS (VELOCIZZATE)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Exit signals
+exit_wt = wtUp or wtBullish
+exit_st = trend_out == 1
+exit_tema = close_tf > tema_out
+exit_rsi = rsi > 55 and rsi > rsi_prev  // RSI in risalita sopra 55
+
+// Profit già realizzato
+currentProfit = inShort ? (entryPrice - close_tf) / entryPrice : 0
+hasProfit = currentProfit > tp1_perc
+
+// EXIT VELOCE: solo 1 segnale richiesto se siamo già in profitto
+exit_count = (exit_wt ? 1 : 0) + (exit_st ? 1 : 0) + (exit_tema ? 1 : 0) + (exit_rsi ? 1 : 0)
+shouldExit = hasProfit ? (exit_count >= 1) : (exit_count >= 2)
+
+// Emergency exit: RSI > 65 (forte rimbalzo)
+emergencyExit = rsi > 65 and inShort
+
+exit_bar = inShort and (shouldExit or emergencyExit)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXECUTE EXITS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 if inShort
-    strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tpPerc > 0 ? limitPrice : na)
+    // Take Profit Parziali
+    if usePartialTP
+        // TP1
+        if not tp1_hit and close_tf <= tp1Price
+            strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
+            tp1_hit := true
+
+        // TP2
+        if not tp2_hit and tp1_hit and close_tf <= tp2Price
+            strategy.close("Short", comment="TP2", qty_percent=tp2_size * 100 / (1 - tp1_size))
+            tp2_hit := true
+
+        // TP3 finale
+        strategy.exit("TP3/SL", from_entry="Short", stop=stopPrice, limit=tp3Price)
+    else
+        // Single TP/SL
+        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp3Price)
+
+    // Signal-based exit
     if exit_bar
-        strategy.close("Short", comment="Cover")
+        strategy.close("Short", comment=emergencyExit ? "EMERGENCY" : "Cover")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLOTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// TEMA 200 HTF (Bear market filter)
-plot(showBearFilter ? tema200_htf : na, "TEMA 200 HTF", color=isBearMarket ? color.new(color.red, 40) : color.new(color.green, 40), linewidth=3, style=plot.style_line)
+// TEMA 200 HTF
+plot(showBearFilter ? tema200_htf : na, "TEMA 200 HTF", color=isBearMarket ? color.new(color.red, 40) : color.new(color.green, 40), linewidth=3)
 
 // TEMA lines
 plot(tema_in, "TEMA IN", color=color.new(color.purple, 0), linewidth=2)
 plot(tema_out, "TEMA OUT", color=color.new(color.blue, 50), linewidth=1, style=plot.style_circles)
 
 // Supertrend
-plot(trend_in==-1 ? _dn_in : na, "ST Dn (Short)", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
-plot(trend_in==1 ? _up_in : na, "ST Up (Exit)", color=color.new(color.green, 0), linewidth=2, style=plot.style_linebr)
+plot(trend_in==-1 ? _dn_in : na, "ST Dn", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+plot(trend_in==1 ? _up_in : na, "ST Up", color=color.new(color.green, 0), linewidth=2, style=plot.style_linebr)
 
 // Background
-bgcolor(isBearMarket ? color.new(color.red, 97) : color.new(color.green, 97), title="Bear/Bull Market")
+bgcolor(showPanicZones and isPanicMode ? color.new(color.orange, 85) : na, title="Panic Zone")
+bgcolor(isBearMarket ? color.new(color.red, 97) : color.new(color.green, 97), title="Bear/Bull")
 bgcolor(inShort ? color.new(color.red, 92) : na, title="In Position")
 
 // SL/TP levels
 plot(showLevels and inShort ? stopPrice : na, "Stop Loss", color=color.new(color.red, 0), linewidth=2, style=plot.style_cross)
-plot(showLevels and inShort ? limitPrice : na, "Take Profit", color=color.new(color.green, 0), linewidth=2, style=plot.style_cross)
+plot(showLevels and inShort ? tp1Price : na, "TP1", color=color.new(color.lime, 60), linewidth=1, style=plot.style_circles)
+plot(showLevels and inShort ? tp2Price : na, "TP2", color=color.new(color.lime, 40), linewidth=1, style=plot.style_circles)
+plot(showLevels and inShort ? tp3Price : na, "TP3", color=color.new(color.green, 0), linewidth=2, style=plot.style_cross)
 plot(showLevels and inShort ? entryPrice : na, "Entry", color=color.new(color.white, 0), linewidth=1, style=plot.style_circles)
 
-// Entry signal
-plotshape(shortOK and not inShort, "SHORT", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.large)
+// Entry signals
+plotshape(shortStandard and not inShort and not shortPanic, "SHORT STD", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.normal)
+plotshape(shortPanic and not inShort, "SHORT PANIC", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
 
-// Exit signal
-plotshape(exit_bar, "COVER", shape.triangleup, location.belowbar, color.new(color.lime, 0), size=size.large)
+// Exit signals
+plotshape(exit_bar and not emergencyExit, "COVER", shape.triangleup, location.belowbar, color.new(color.lime, 0), size=size.normal)
+plotshape(emergencyExit, "EMERGENCY", shape.xcross, location.belowbar, color.new(color.yellow, 0), size=size.large)
+
+// Panic indicators
+plotshape(showPanicZones and isPanicBar and not inShort, "Panic Bar", shape.circle, location.belowbar, color.new(color.orange, 0), size=size.tiny)
+plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LABELS
@@ -213,27 +390,147 @@ plotshape(exit_bar, "COVER", shape.triangleup, location.belowbar, color.new(colo
 if showLabels
     // Entry label
     if shortOK and not inShort
-        filterMode = isBearMarket ? "BEAR MODE" : "NORMAL"
-        label.new(bar_index, high_tf, 
-             text="SHORT " + filterMode + "\n" + str.tostring(close_tf, "#.##") + "\nSL: " + str.tostring(stopPrice, "#.##") + "\nTP: " + str.tostring(limitPrice, "#.##"), 
-             style=label.style_label_down, 
-             color=color.red, 
-             textcolor=color.white, 
+        modeText = shortPanic ? "PANIC MODE" : (isBearMarket ? "BEAR MODE" : "NORMAL")
+        labelColor = shortPanic ? color.orange : color.red
+        label.new(bar_index, high_tf,
+             text="SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
+                  "\nSL: " + str.tostring(stopPrice, "#.##") +
+                  "\nTP1: " + str.tostring(tp1Price, "#.##") +
+                  "\nTP3: " + str.tostring(tp3Price, "#.##") +
+                  "\nFear: " + str.tostring(fearIndex, "#") + "%",
+             style=label.style_label_down,
+             color=labelColor,
+             textcolor=color.white,
              size=size.normal)
-    
+
     // Exit label
     if exit_bar
         profitPct = ((entryPrice - close_tf) / entryPrice) * 100
         profitColor = profitPct > 0 ? color.green : color.red
-        label.new(bar_index, low_tf, 
-             text="COVER\n" + str.tostring(close_tf, "#.##") + "\nP&L: " + str.tostring(profitPct, "#.##") + "%", 
-             style=label.style_label_up, 
-             color=profitColor, 
-             textcolor=color.white, 
+        exitType = emergencyExit ? "EMERGENCY EXIT" : "COVER"
+        label.new(bar_index, low_tf,
+             text=exitType + "\nExit: " + str.tostring(close_tf, "#.##") +
+                  "\nP&L: " + str.tostring(profitPct, "#.##") + "%" +
+                  "\nBars: " + str.tostring(bar_index - entryBar),
+             style=label.style_label_up,
+             color=profitColor,
+             textcolor=color.white,
              size=size.normal)
+
+// TP hit labels
+if showLabels and inShort
+    if tp1_hit and not tp1_hit[1]
+        label.new(bar_index, low_tf,
+             text="TP1 HIT\n" + str.tostring(tp1_perc * 100, "#.#") + "%",
+             style=label.style_label_up,
+             color=color.new(color.green, 30),
+             textcolor=color.white,
+             size=size.tiny)
+    if tp2_hit and not tp2_hit[1]
+        label.new(bar_index, low_tf,
+             text="TP2 HIT\n" + str.tostring(tp2_perc * 100, "#.#") + "%",
+             style=label.style_label_up,
+             color=color.new(color.green, 20),
+             textcolor=color.white,
+             size=size.tiny)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard
+    var table dashboard = table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 80), border_width=1)
+
+    // Header
+    table.cell(dashboard, 0, 0, "PANIC HUNTER v3.0", text_color=color.white, text_size=size.normal, bgcolor=color.new(color.purple, 60))
+    table.cell(dashboard, 1, 0, "", bgcolor=color.new(color.purple, 60))
+
+    // Market Status
+    marketStatus = isStrongBear ? "STRONG BEAR" : (isBearMarket ? "BEAR" : "BULL")
+    marketColor = isStrongBear ? color.red : (isBearMarket ? color.orange : color.green)
+    table.cell(dashboard, 0, 1, "Market:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 1, marketStatus, text_color=marketColor, text_size=size.small)
+
+    // Fear Index
+    fearColor = fearIndex > 50 ? color.red : (fearIndex > 30 ? color.orange : color.green)
+    table.cell(dashboard, 0, 2, "Fear Index:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 2, str.tostring(fearIndex, "#.#") + "%", text_color=fearColor, text_size=size.small)
+
+    // Panic Score
+    panicColor = panicScore >= 40 ? color.red : (panicScore >= 25 ? color.orange : color.gray)
+    table.cell(dashboard, 0, 3, "Panic Score:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 3, str.tostring(panicScore) + "/100", text_color=panicColor, text_size=size.small)
+
+    // Mode
+    modeText = isPanicMode ? "PANIC MODE" : "STANDARD"
+    modeColor = isPanicMode ? color.orange : color.white
+    table.cell(dashboard, 0, 4, "Mode:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 4, modeText, text_color=modeColor, text_size=size.small)
+
+    // RSI
+    rsiColor = rsi < 30 ? color.green : (rsi > 70 ? color.red : color.white)
+    table.cell(dashboard, 0, 5, "RSI:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 5, str.tostring(rsi, "#.#"), text_color=rsiColor, text_size=size.small)
+
+    // Volume
+    volText = isVolSpike ? "SPIKE!" : (highVolume ? "HIGH" : "NORMAL")
+    volColor = isVolSpike ? color.orange : (highVolume ? color.green : color.gray)
+    table.cell(dashboard, 0, 6, "Volume:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 6, volText, text_color=volColor, text_size=size.small)
+
+    // Trend
+    trendText = trend_in == -1 ? "DOWN" : "UP"
+    trendColor = trend_in == -1 ? color.red : color.green
+    table.cell(dashboard, 0, 7, "Trend:", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 7, trendText, text_color=trendColor, text_size=size.small)
+
+    // Separator
+    table.cell(dashboard, 0, 8, "────────", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 8, "────────", text_color=color.gray, text_size=size.small)
+
+    // Position Info
+    if inShort
+        table.cell(dashboard, 0, 9, "Position:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 9, "SHORT", text_color=color.red, text_size=size.small)
+
+        table.cell(dashboard, 0, 10, "Entry:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 10, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small)
+
+        pnlColor = currentProfit > 0 ? color.green : color.red
+        table.cell(dashboard, 0, 11, "P&L:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 11, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 12, "Trail Stop:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 12, str.tostring(stopPrice, "#.##"), text_color=color.red, text_size=size.small)
+
+        tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
+        tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
+        table.cell(dashboard, 0, 13, "TP Status:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 13, tpStatus, text_color=tpStatusColor, text_size=size.small)
+    else
+        signalText = shortOK ? "READY!" : "WAITING"
+        signalColor = shortOK ? color.green : color.gray
+        table.cell(dashboard, 0, 9, "Signal:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 9, signalText, text_color=signalColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 10, "WT:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 10, wtDown ? "BEARISH" : "BULLISH", text_color=wtDown ? color.red : color.green, text_size=size.small)
+
+        table.cell(dashboard, 0, 11, "TEMA Slope:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 11, isTemaFalling ? "FALLING" : "RISING", text_color=isTemaFalling ? color.red : color.green, text_size=size.small)
+
+        table.cell(dashboard, 0, 12, "Dist ATR:", text_color=color.gray, text_size=size.small)
+        distColor = distATR <= maxDistATR ? color.green : color.red
+        table.cell(dashboard, 1, 12, str.tostring(distATR, "#.##"), text_color=distColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 13, "Lateral:", text_color=color.gray, text_size=size.small)
+        table.cell(dashboard, 1, 13, isLateral ? "YES" : "NO", text_color=isLateral ? color.red : color.green, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+alertcondition(shortPanic and not inShort, title="PANIC SHORT Signal", message="PANIC SHORT Signal detected! High fear conditions present.")
+alertcondition(shortStandard and not inShort, title="Standard SHORT Signal", message="Standard SHORT signal detected in bear market.")
+alertcondition(emergencyExit, title="Emergency Exit", message="EMERGENCY EXIT triggered - Strong bounce detected!")
+alertcondition(isPanicMode and not isPanicMode[1], title="Panic Mode Activated", message="Market entering PANIC MODE - High volatility and fear detected!")
