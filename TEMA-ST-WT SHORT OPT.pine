@@ -290,6 +290,20 @@ volOK = useVolumeFilter ? highVolume : true
 latOK = useLateralFilter ? not isLateral : true
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// POSITION VARIABLES (dichiarate prima per uso in cooldown/drawdown)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var float entryPrice = na
+var int entryBar = na
+var float trailStop = na
+var float lowestSinceEntry = na
+var bool tp1_hit = false
+var bool tp2_hit = false
+var string entryMode = ""
+
+inShort = strategy.position_size < 0
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // COOLDOWN & BEAR MODE FILTERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -297,7 +311,6 @@ latOK = useLateralFilter ? not isLateral : true
 var int lastExitBar = 0
 var bool lastTradeWasProfit = false
 var float lastExitProfit = 0.0
-inShort = strategy.position_size < 0
 
 // Aggiorna lastExitBar quando usciamo da posizione
 if inShort[1] and not inShort
@@ -377,14 +390,6 @@ if not inShort and shortOK
 // ═══════════════════════════════════════════════════════════════════════════════
 // POSITION MANAGEMENT & TRAILING STOP
 // ═══════════════════════════════════════════════════════════════════════════════
-
-var float entryPrice = na
-var int entryBar = na
-var float trailStop = na
-var float lowestSinceEntry = na
-var bool tp1_hit = false
-var bool tp2_hit = false
-var string entryMode = ""
 
 // Reset on new position
 if inShort and not inShort[1]
