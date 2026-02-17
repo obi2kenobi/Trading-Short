@@ -70,7 +70,7 @@ sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grp
 
 grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
 useBearMode = input.bool(true, "Abilita SHORT BEAR mode", group=grpBearMode)
-bearMinFear = input.float(7.0, "Fear Index minimo per BEAR %", minval=0, maxval=30, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura")
+bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=50, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura. Fear Index ora scala 0-100")
 bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
 cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
 
@@ -200,8 +200,11 @@ rsiComponent = math.min(50, math.max(0, (50 - rsi)))
 volRatio = vol_tf / volMA20
 volFearComponent = math.min(30, math.max(0, (volRatio - 1) * 30))
 
-// FEAR INDEX (0-100)
-fearIndex = (volComponent * 0.3 + rsiComponent * 0.4 + volFearComponent * 0.3)
+// FEAR INDEX (0-100) - scalato correttamente
+// Max teorico grezzo: volComponent(50)*0.3 + rsiComponent(50)*0.4 + volFearComponent(30)*0.3 = 44
+// Normalizzato a 0-100 per rendere le soglie intuitive
+rawFear = volComponent * 0.3 + rsiComponent * 0.4 + volFearComponent * 0.3
+fearIndex = math.min(100, rawFear * 100 / 44)
 isHighFear = fearIndex > 35
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -355,12 +358,21 @@ totalDrawdown = peakEquity > 0 ? (peakEquity - strategy.equity) / peakEquity : 0
 
 // Track perdite consecutive
 var int consecutiveLosses = 0
+var int lossBlockBar = 0  // barra in cui è scattato il blocco
 if inShort[1] and not inShort
     // Posizione appena chiusa - controlla se in profitto o perdita
     if strategy.equity < strategy.equity[1]
         consecutiveLosses += 1
+        if consecutiveLosses >= maxConsecutiveLosses
+            lossBlockBar := bar_index
     else
         consecutiveLosses := 0
+
+// Auto-reset: dopo 20 barre di pausa forzata, resetta le perdite consecutive
+// Così il bot non resta bloccato per sempre
+lossBlockBars = bar_index - lossBlockBar
+if consecutiveLosses >= maxConsecutiveLosses and lossBlockBars >= 20
+    consecutiveLosses := 0
 
 // Circuit breaker attivo?
 dailyDrawdownOK = not useDrawdownProtection or dailyDrawdown < maxDailyDrawdown
@@ -372,8 +384,12 @@ drawdownOK = dailyDrawdownOK and totalDrawdownOK and consecutiveLossOK
 // ENTRY SIGNALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// CONDIZIONE SHORT STANDARD (BEAR) - ora molto più restrittiva
-shortBearConditions = (trend_in == -1) and wtDown and isTemaFalling and (distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
+// SCORE DIREZIONALE: almeno 2 su 3 indicatori devono confermare la direzione short
+dirScore = (trend_in == -1 ? 1 : 0) + (wtDown ? 1 : 0) + (isTemaFalling ? 1 : 0)
+directionOK = dirScore >= 2  // 2/3 bastano, non servono tutti e 3
+
+// CONDIZIONE SHORT STANDARD (BEAR) - richiede 2/3 segnali direzionali + filtri
+shortBearConditions = directionOK and (distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
 shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK and drawdownOK
 shortStandard = useBearMode and shortBearConditions and shortBearFilters
 
@@ -663,14 +679,15 @@ if showDashboard
     table.cell(dashboard, 1, 5, str.tostring(rsi, "#.#"), text_color=rsiColor, text_size=size.small, bgcolor=rowBg)
     table.cell(dashboard, 2, 5, volText, text_color=volColor, text_size=size.small, bgcolor=rowBg)
 
-    // WT + TEMA (combinati)
+    // WT + TEMA + Direction Score (combinati)
     wtText = wtDown ? "BEAR" : "BULL"
     wtColor = wtDown ? color.red : color.green
     temaText = isTemaFalling ? "FALL" : "RISE"
     temaColor = isTemaFalling ? color.red : color.green
+    dirScoreColor = dirScore >= 2 ? color.green : (dirScore >= 1 ? color.orange : color.red)
     table.cell(dashboard, 0, 6, "WT / TEMA", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 6, wtText, text_color=wtColor, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 6, temaText, text_color=temaColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 1, 6, wtText + " / " + temaText, text_color=dirScore >= 2 ? color.green : color.orange, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 6, "Dir " + str.tostring(dirScore) + "/3", text_color=dirScoreColor, text_size=size.small, bgcolor=rowBg)
 
     // ── SEZIONE RISK ──
     ddBg = not drawdownOK ? color.new(color.red, 70) : (dailyDrawdown > maxDailyDrawdown * 0.7 ? color.new(color.orange, 80) : sectRisk)
@@ -685,11 +702,15 @@ if showDashboard
     table.cell(dashboard, 1, 8, str.tostring(dailyDrawdown * 100, "#.#") + "% / " + str.tostring(totalDrawdown * 100, "#.#") + "%", text_color=dailyDrawdown > maxDailyDrawdown * 0.5 ? color.orange : color.white, text_size=size.small, bgcolor=ddBg)
     table.cell(dashboard, 2, 8, ddText, text_color=ddColor, text_size=size.small, bgcolor=ddBg)
 
-    // Consecutive losses + Cooldown
+    // Consecutive losses + Cooldown + Auto-reset timer
     cooldownText = cooldownOK ? "OK" : str.tostring(math.max(0, smartCooldown - barsSinceExit)) + " bars"
     cooldownColor = cooldownOK ? color.green : color.orange
+    // Se bloccato per loss consecutive, mostra timer reset
+    lossText = str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) + " loss"
+    resetBarsLeft = consecutiveLosses >= maxConsecutiveLosses ? math.max(0, 20 - lossBlockBars) : 0
+    resetText = resetBarsLeft > 0 ? " RST:" + str.tostring(resetBarsLeft) : ""
     table.cell(dashboard, 0, 9, "Loss/Cool", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 9, str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) + " loss", text_color=consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 1, 9, lossText + resetText, text_color=consecutiveLosses >= maxConsecutiveLosses ? color.red : (consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white), text_size=size.small, bgcolor=rowBg)
     table.cell(dashboard, 2, 9, cooldownText, text_color=cooldownColor, text_size=size.small, bgcolor=rowBg)
 
     // Session (solo su 4H)
