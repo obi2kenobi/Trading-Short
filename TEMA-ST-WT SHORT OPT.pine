@@ -613,7 +613,7 @@ if showDashboard
     rowBg     = color.new(color.black, 90)
 
     // ── HEADER ──
-    tfLabel = is4H ? "4H" : (isDaily ? "1D" : tf)
+    tfLabel = tf == "60" ? "1H" : (tf == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : tf)))
     statusDot = inShort ? "SHORT" : (shortOK ? "READY" : "IDLE")
     statusCol = inShort ? color.red : (shortOK ? color.lime : color.gray)
     table.cell(dashboard, 0, 0, "PANIC HUNTER", text_color=color.white, text_size=size.normal, bgcolor=hdrBg)
