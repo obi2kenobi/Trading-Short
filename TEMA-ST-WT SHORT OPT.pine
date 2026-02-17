@@ -119,7 +119,7 @@ isPanicBar = isBearishCandle and candleBody > atr14 * panicBarATRmult and candle
 
 // 3. RSI CRASH DETECTION
 rsi = ta.rsi(close_tf, rsiLen)
-rsi_prev = ta.rsi(close_tf[1], rsiLen)
+rsi_prev = rsi[1]  // usa il valore RSI della barra precedente, non ricalcolare
 isRsiPanic = rsi < rsiPanicLevel
 isRsiCrashing = rsi < rsi_prev - 5 and rsi < 50  // RSI in caduta rapida
 
@@ -321,8 +321,8 @@ if inShort
         // Trailing stop basato su ATR dal minimo
         newTrailStop = lowestSinceEntry + atr14 * trailATRmult
 
-        // Il trailing stop può solo scendere (per short)
-        if newTrailStop < trailStop
+        // Il trailing stop può solo scendere (per short), con guard per na
+        if na(trailStop) or newTrailStop < trailStop
             trailStop := newTrailStop
 
 // Calcolo livelli
@@ -346,9 +346,9 @@ exit_rsi = rsi > 55 and rsi > rsi_prev  // RSI in risalita sopra 55
 currentProfit = inShort ? (entryPrice - close_tf) / entryPrice : 0
 hasProfit = currentProfit > tp1_perc
 
-// EXIT VELOCE: solo 1 segnale richiesto se siamo già in profitto
+// EXIT: 2 segnali richiesti se in profitto, 3 se in perdita (evita uscite premature)
 exit_count = (exit_wt ? 1 : 0) + (exit_st ? 1 : 0) + (exit_tema ? 1 : 0) + (exit_rsi ? 1 : 0)
-shouldExit = hasProfit ? (exit_count >= 1) : (exit_count >= 2)
+shouldExit = hasProfit ? (exit_count >= 2) : (exit_count >= 3)
 
 // Emergency exit: RSI > 65 (forte rimbalzo)
 emergencyExit = rsi > 65 and inShort
@@ -367,9 +367,11 @@ if inShort
             strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
             tp1_hit := true
 
-        // TP2
+        // TP2 - qty_percent è relativo alla posizione rimanente (dopo TP1)
         if not tp2_hit and tp1_hit and close_tf <= tp2Price
-            strategy.close("Short", comment="TP2", qty_percent=tp2_size * 100 / (1 - tp1_size))
+            remainingAfterTP1 = 1.0 - tp1_size
+            tp2_qty = math.min(tp2_size / remainingAfterTP1 * 100, 100)
+            strategy.close("Short", comment="TP2", qty_percent=tp2_qty)
             tp2_hit := true
 
         // TP3 finale
@@ -378,9 +380,12 @@ if inShort
         // Single TP/SL
         strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp3Price)
 
-    // Signal-based exit
+    // Signal-based exit - emergency esce sempre, cover solo se TP1 già colpito o TP disabilitati
     if exit_bar
-        strategy.close("Short", comment=emergencyExit ? "EMERGENCY" : "Cover")
+        if emergencyExit
+            strategy.close("Short", comment="EMERGENCY")
+        else if not usePartialTP or tp1_hit
+            strategy.close("Short", comment="Cover")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLOTS
