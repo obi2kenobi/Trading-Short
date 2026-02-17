@@ -69,7 +69,7 @@ sessionStart = input.int(8, "Sessione Inizio (UTC)", minval=0, maxval=23, group=
 sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grpFilter, tooltip="Ora UTC di fine sessione attiva")
 
 grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
-useBearMode = input.bool(true, "Abilita SHORT BEAR mode", group=grpBearMode)
+useBearMode = input.bool(false, "Abilita SHORT BEAR mode", group=grpBearMode)
 bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=50, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura. Fear Index ora scala 0-100")
 bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
 cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
