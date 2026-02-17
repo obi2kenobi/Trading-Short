@@ -58,7 +58,7 @@ grpDrawdown = "═══ DRAWDOWN PROTECTION ═══"
 useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown)
 maxDailyDrawdown = input.float(5.0, "Max Drawdown Giornaliero %", minval=1.0, maxval=15.0, step=0.5, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown giornaliero supera questa soglia") / 100
 maxTotalDrawdown = input.float(12.0, "Max Drawdown Totale %", minval=3.0, maxval=30.0, step=1.0, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown totale supera questa soglia") / 100
-maxConsecutiveLosses = input.int(3, "Max Perdite Consecutive", minval=1, maxval=6, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
+maxConsecutiveLosses = input.int(5, "Max Perdite Consecutive", minval=1, maxval=8, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
 
 grpFilter = "═══ FILTRI MERCATO ═══"
 useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=grpFilter, tooltip="Se disattivato, opera anche in bull market")
@@ -70,8 +70,8 @@ sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grp
 
 grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
 useBearMode = input.bool(true, "Abilita SHORT BEAR mode", group=grpBearMode)
-bearMinFear = input.float(12.0, "Fear Index minimo per BEAR %", minval=0, maxval=30, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura")
-bearMinRedBars = input.int(2, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
+bearMinFear = input.float(7.0, "Fear Index minimo per BEAR %", minval=0, maxval=30, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura")
+bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
 cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
 
 grpIndicators = "═══ INDICATORI ═══"
@@ -79,7 +79,7 @@ temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndi
 temaLen_out = input.int(24, "TEMA OUT Period", minval=10, maxval=50, group=grpIndicators)
 stFactor_in = input.float(2.4, "Supertrend IN Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
 stFactor_out = input.float(2.2, "Supertrend OUT Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
-maxDistATR = input.float(1.8, "Max Distance ATR", minval=0.5, maxval=3.0, step=0.1, group=grpIndicators)
+maxDistATR = input.float(2.5, "Max Distance ATR", minval=0.5, maxval=4.0, step=0.1, group=grpIndicators)
 
 grpVisual = "═══ VISUALIZZAZIONE ═══"
 showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
@@ -276,7 +276,7 @@ rangeCond  = (rangeHigh5 - rangeLow5) / close_tf < 0.008
 isLateral  = isFlatSlope and rangeCond and not isPanicMode
 
 // Filtro volume (più permissivo in panic)
-activeVolMult = isPanicMode ? 0.8 : (isBearMarket ? 1.0 : 1.2)
+activeVolMult = isPanicMode ? 0.6 : (isBearMarket ? 0.7 : 0.9)
 highVolume = vol_tf > volMA20 * activeVolMult
 
 // Filtro sessione: su 4H evita orari morti, su Daily sempre attivo
