@@ -15,6 +15,9 @@ tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"
 // — DATI MULTITF —
 [close_tf, high_tf, low_tf, hl2_tf, hlc3_tf, vol_tf, open_tf] = request.security(syminfo.tickerid, tf, [close, high, low, hl2, hlc3, volume, open])
 close_htf = request.security(syminfo.tickerid, tf_filter, close)
+// FIX 1: ATR calcolati sul TF operativo (coerenti con i dati OHLC usati per Supertrend e trailing stop)
+atr14 = request.security(syminfo.tickerid, tf, ta.atr(14))
+atr10 = request.security(syminfo.tickerid, tf, ta.atr(10))
 
 // — STRATEGY SETTINGS —
 strategy("TEMA-ST-WT PANIC HUNTER v3.1", overlay=true,
@@ -24,7 +27,8 @@ strategy("TEMA-ST-WT PANIC HUNTER v3.1", overlay=true,
      pyramiding         = 0,
      commission_type    = strategy.commission.percent,
      commission_value   = 0.01,
-     calc_on_every_tick = true)
+     // FIX 3: era true → con dati multi-TF genera repainting nel backtest (tick sintetici)
+     calc_on_every_tick = false)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INPUT PARAMETERS - RISK MANAGEMENT
@@ -128,18 +132,18 @@ adaptedPanicBarATR = panicBarATRmult * tfPanicMult
 // PARAMETRI INTERNI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-stPeriod = 10
-wtN1 = 10
-wtN2 = 21
-rsiLen = 14
+stPeriod  = 10
+wtN1      = 10
+// FIX 2: WT IN e OUT usavano lo stesso N2 → serie identiche. Ora differenziati:
+//   IN  (entry): N2 più lungo = segnale più lento, meno falsi positivi in entrata
+//   OUT (exit):  N2 più corto = segnale più rapido, uscita tempestiva
+wtN2_in   = 21
+wtN2_out  = 14
+rsiLen    = 14
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PANIC DETECTION MODULE
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// ATR per misurazioni
-atr14 = ta.atr(14)
-atr10 = ta.atr(10)
 
 // 1. VOLUME SPIKE DETECTION
 volMA20 = ta.sma(vol_tf, 20)
@@ -246,7 +250,7 @@ ap_in  = hlc3_tf
 esa_in = ta.ema(ap_in, wtN1)
 d_in   = ta.ema(math.abs(ap_in - esa_in), wtN1)
 ci_in  = (ap_in - esa_in) / (0.015 * d_in)
-wt1_in = ta.ema(ci_in, wtN2)
+wt1_in = ta.ema(ci_in, wtN2_in)
 wt2_in = ta.sma(wt1_in, 4)
 wtDown = wt1_in < wt2_in
 wtCrossDown = ta.crossunder(wt1_in, wt2_in)
@@ -256,7 +260,7 @@ ap_out  = hlc3_tf
 esa_out = ta.ema(ap_out, wtN1)
 d_out   = ta.ema(math.abs(ap_out - esa_out), wtN1)
 ci_out  = (ap_out - esa_out) / (0.015 * d_out)
-wt1_out = ta.ema(ci_out, wtN2)
+wt1_out = ta.ema(ci_out, wtN2_out)
 wt2_out = ta.sma(wt1_out, 4)
 wtUp = ta.crossover(wt1_out, wt2_out)
 wtBullish = wt1_out > wt2_out
@@ -318,8 +322,10 @@ var float lastExitProfit = 0.0
 // Aggiorna lastExitBar quando usciamo da posizione
 if inShort[1] and not inShort
     lastExitBar := bar_index
-    lastExitProfit := (entryPrice - close_tf) / entryPrice
-    lastTradeWasProfit := lastExitProfit > 0
+    // FIX 6: entryPrice potrebbe essere na al primo trade o dopo reset → guard esplicita
+    if not na(entryPrice) and entryPrice != 0
+        lastExitProfit    := (entryPrice - close_tf) / entryPrice
+        lastTradeWasProfit := lastExitProfit > 0
 
 // Cooldown intelligente: ridotto dopo trade profittevole se il trend continua
 barsSinceExit = bar_index - lastExitBar
@@ -341,12 +347,15 @@ fearOK_bear = fearIndex >= bearMinFear
 
 // Track equity giornaliero per drawdown
 var float dailyStartEquity = strategy.equity
-var int lastDay = dayofweek
+// FIX 7: dayofweek si ripeteva ogni settimana (non univoco per giorno di calendario).
+//         Chiave univoca = anno*10000 + mese*100 + giorno → nessun false reset.
+var int lastDayKey = year * 10000 + month * 100 + dayofmonth
+currentDayKey = year * 10000 + month * 100 + dayofmonth
 
 // Reset equity giornaliero a inizio giornata
-if dayofweek != lastDay
+if currentDayKey != lastDayKey
     dailyStartEquity := strategy.equity
-    lastDay := dayofweek
+    lastDayKey       := currentDayKey
 
 // Calcolo drawdown giornaliero
 dailyDrawdown = dailyStartEquity > 0 ? (dailyStartEquity - strategy.equity) / dailyStartEquity : 0.0
@@ -360,13 +369,17 @@ totalDrawdown = peakEquity > 0 ? (peakEquity - strategy.equity) / peakEquity : 0
 var int consecutiveLosses = 0
 var int lossBlockBar = 0  // barra in cui è scattato il blocco
 if inShort[1] and not inShort
-    // Posizione appena chiusa - controlla se in profitto o perdita
-    if strategy.equity < strategy.equity[1]
-        consecutiveLosses += 1
-        if consecutiveLosses >= maxConsecutiveLosses
-            lossBlockBar := bar_index
-    else
-        consecutiveLosses := 0
+    // FIX 4: usava strategy.equity[1] che è impreciso (risente di open PnL e altri fattori).
+    // strategy.closedtrades.profit() restituisce il P&L netto del trade appena chiuso.
+    nTrades = strategy.closedtrades
+    if nTrades > 0
+        lastTradeProfit = strategy.closedtrades.profit(nTrades - 1)
+        if lastTradeProfit < 0
+            consecutiveLosses += 1
+            if consecutiveLosses >= maxConsecutiveLosses
+                lossBlockBar := bar_index
+        else
+            consecutiveLosses := 0
 
 // Auto-reset: dopo 20 barre di pausa forzata, resetta le perdite consecutive
 // Così il bot non resta bloccato per sempre
@@ -389,7 +402,9 @@ dirScore = (trend_in == -1 ? 1 : 0) + (wtDown ? 1 : 0) + (isTemaFalling ? 1 : 0)
 directionOK = dirScore >= 2  // 2/3 bastano, non servono tutti e 3
 
 // CONDIZIONE SHORT STANDARD (BEAR) - richiede 2/3 segnali direzionali + filtri
-shortBearConditions = directionOK and (distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
+// FIX 5: distATR < 0 significa prezzo SOPRA la TEMA → la condizione <=maxDistATR era sempre vera
+//         Aggiunto distATR >= 0: si entra solo se il prezzo è sotto la TEMA (distanza positiva)
+shortBearConditions = directionOK and (distATR >= 0 and distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
 shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK and drawdownOK
 shortStandard = useBearMode and shortBearConditions and shortBearFilters
 
@@ -400,7 +415,8 @@ shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsi
 shortOK = shortStandard or shortPanic
 
 // Entry
-if not inShort and shortOK
+// FIX 3: barstate.isconfirmed evita entry su tick intrabar non confermati (anti-repainting)
+if not inShort and shortOK and barstate.isconfirmed
     strategy.entry("Short", strategy.short)
 
 // ═══════════════════════════════════════════════════════════════════════════════
