@@ -88,6 +88,9 @@ bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=
 bearMinFearReduced = input.float(7.0, "Fear Ridotto in Strong Bear %", minval=0, maxval=50, step=0.5, group=grpBearMode, tooltip="Fear Index minimo quando isStrongBear è attivo. Valore ridotto per bear strutturale")
 bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
 cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
+strongBearExitBonus = input.float(2.5, "Exit Threshold Bonus Strong Bear", minval=0.0, maxval=4.0, step=0.5, group=grpBearMode, tooltip="Aggiunto alla soglia exit in Strong Bear per evitare uscite premature su rimbalzi tecnici")
+rsiExitLevelBear = input.int(65, "RSI Exit Level Strong Bear", minval=55, maxval=75, group=grpBearMode, tooltip="RSI minimo per segnale exit in Strong Bear. Più alto = lascia correre più a lungo")
+emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65, maxval=80, group=grpBearMode, tooltip="RSI per emergency exit in Strong Bear. Più alto = protezione solo su rimbalzi veramente forti")
 
 grpIndicators = "═══ INDICATORI ═══"
 temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndicators)
@@ -515,7 +518,9 @@ tp3Price = entryPrice * (1 - tp3_perc)
 exit_wt = wtUp or wtBullish
 exit_st = trend_out == 1
 exit_tema = close_tf > tema_out
-exit_rsi = rsi > 55 and rsi > rsi_prev  // RSI in risalita sopra 55
+// MODIFICA 2: RSI exit adattiva — soglia più alta in Strong Bear
+rsiExitLevel = isStrongBear ? rsiExitLevelBear : 55
+exit_rsi = rsi > rsiExitLevel and rsi > rsi_prev
 
 // Pesi exit: Supertrend flip è il segnale più forte, WT il più debole
 wt_exit_st   = 3.0   // Supertrend flip = segnale strutturale forte
@@ -527,13 +532,16 @@ wt_exit_wt   = 1.5   // WT bullish = più rumoroso, peso minore
 currentProfit = inShort ? (entryPrice - close_tf) / entryPrice : 0
 hasProfit = currentProfit > tp1_perc
 
-// EXIT PONDERATO: soglia 4.0 in profitto, 6.0 in perdita
+// EXIT PONDERATO: soglia adattiva al regime
 exitScore = (exit_wt ? wt_exit_wt : 0) + (exit_st ? wt_exit_st : 0) + (exit_tema ? wt_exit_tema : 0) + (exit_rsi ? wt_exit_rsi : 0)
-exitThreshold = hasProfit ? 4.0 : 6.0
+// MODIFICA 1: soglia base + bonus in Strong Bear per evitare cover premature
+exitThresholdBase = hasProfit ? 4.0 : 6.0
+exitThreshold = isStrongBear ? exitThresholdBase + strongBearExitBonus : exitThresholdBase
 shouldExit = exitScore >= exitThreshold
 
-// Emergency exit: RSI > 65 (forte rimbalzo)
-emergencyExit = rsi > 65 and inShort
+// MODIFICA 3: Emergency exit adattiva — soglia RSI più alta in Strong Bear
+emergencyExitLevel = isStrongBear ? emergencyExitRsiBear : 65
+emergencyExit = rsi > emergencyExitLevel and inShort
 
 exit_bar = inShort and (shouldExit or emergencyExit)
 
@@ -821,9 +829,10 @@ if showDashboard
         table.cell(dashboard, 1, 15, str.tostring(stopPrice, "#.##"), text_color=color.red, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 15, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
 
-        // Exit score (row 16)
+        // Exit score (row 16) — mostra soglia effettiva e indicatore (SB) se Strong Bear
         exitPct = exitThreshold > 0 ? math.min(exitScore / exitThreshold * 100, 100) : 0
-        exitBarText = exitScore >= exitThreshold ? "EXIT!" : str.tostring(exitScore, "#.#") + "/" + str.tostring(exitThreshold, "#.#")
+        exitSbTag = isStrongBear ? " (SB)" : ""
+        exitBarText = exitScore >= exitThreshold ? "EXIT!" : str.tostring(exitScore, "#.#") + "/" + str.tostring(exitThreshold, "#.#") + exitSbTag
         exitBg = exitScore >= exitThreshold ? color.new(color.orange, 70) : rowBg
         table.cell(dashboard, 0, 16, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
         table.cell(dashboard, 1, 16, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
