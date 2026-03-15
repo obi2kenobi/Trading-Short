@@ -495,16 +495,18 @@ activeStopPerc = isPanicMode ? adaptedStopPanic : adaptedStopNormal
 stopPriceFallback = useStructStop ? stopStrutturale : entryPrice * (1 + activeStopPerc)
 stopPrice = useTrailingStop ? trailStop : stopPriceFallback
 
-// TP dinamici: basati su ATR al momento dell'entry, o % fisse come fallback
+// TP dinamici: basati su ATR e regimeMult al momento dell'entry, o % fisse come fallback
 var float entryATR = na
+var float entryRegimeMult = na
 if inShort and not inShort[1]
     entryATR := atr14
+    entryRegimeMult := regimeMult
 
-// Calcola TP percentuali: usa ATR * regimeMult se abilitato, altrimenti % fissa (fallback invariato)
-// na() guard su entryATR e entryPrice per evitare errori al primo trade
-tp1_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 ? (entryATR * tpATRmult1 * regimeMult) / entryPrice : tp1_perc_input
-tp2_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 ? (entryATR * tpATRmult2 * regimeMult) / entryPrice : tp2_perc_input
-tp3_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 ? (entryATR * tpATRmult3 * regimeMult) / entryPrice : tp3_perc_input
+// Calcola TP percentuali: usa ATR * entryRegimeMult (fisso all'entry) se abilitato, altrimenti % fissa
+// na() guard su entryATR, entryPrice e entryRegimeMult per evitare errori al primo trade
+tp1_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult1 * entryRegimeMult) / entryPrice : tp1_perc_input
+tp2_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult2 * entryRegimeMult) / entryPrice : tp2_perc_input
+tp3_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult3 * entryRegimeMult) / entryPrice : tp3_perc_input
 
 tp1Price = entryPrice * (1 - tp1_perc)
 tp2Price = entryPrice * (1 - tp2_perc)
@@ -805,9 +807,10 @@ if showDashboard
     table.cell(dashboard, 1, 12, "", bgcolor=posHdrBg)
     table.cell(dashboard, 2, 12, "", bgcolor=posHdrBg)
 
-    // TP Mult + Stop Type (row 13) — visibile in entrambi i casi
-    regimeMultText = str.tostring(regimeMult, "#.#") + "x"
-    regimeMultColor = regimeMult > 1.0 ? color.orange : color.white
+    // TP Mult + Stop Type (row 13) — mostra entryRegimeMult in posizione, regimeMult in attesa
+    activeRegimeMult = inShort and not na(entryRegimeMult) ? entryRegimeMult : regimeMult
+    regimeMultText = str.tostring(activeRegimeMult, "#.#") + "x"
+    regimeMultColor = activeRegimeMult > 1.0 ? color.orange : color.white
     stopTypeText = useStructStop ? "STRUCT" : (isPanicMode ? "PANIC" : "STD")
     stopTypeColor = useStructStop ? color.orange : color.white
     table.cell(dashboard, 0, 13, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
