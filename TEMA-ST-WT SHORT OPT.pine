@@ -57,6 +57,8 @@ volSpikeMultiplier = input.float(2.0, "Volume Spike Multiplier", minval=1.5, max
 panicBarATRmult = input.float(1.5, "Panic Bar Size (ATR mult)", minval=1.0, maxval=3.0, step=0.1, group=grpPanic)
 rsiPanicLevel = input.int(35, "RSI Panic Threshold", minval=20, maxval=45, group=grpPanic)
 usePanicMode = input.bool(true, "Abilita Panic Mode Aggressivo", group=grpPanic)
+useSogliaRidottaBear = input.bool(true, "Soglia Ridotta in Strong Bear", group=grpPanic, tooltip="Abbassa soglia panicMode da 40 a 25 quando isStrongBear è attivo")
+useBonusBreakout = input.bool(true, "Bonus Breakout Strutturale", group=grpPanic, tooltip="Aggiunge 15 punti al panicScore quando il prezzo è sotto la regressione lineare di lungo periodo in Strong Bear")
 
 grpDrawdown = "═══ DRAWDOWN PROTECTION ═══"
 useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown)
@@ -75,6 +77,7 @@ sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grp
 grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
 useBearMode = input.bool(false, "Abilita SHORT BEAR mode", group=grpBearMode)
 bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=50, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura. Fear Index ora scala 0-100")
+bearMinFearReduced = input.float(7.0, "Fear Ridotto in Strong Bear %", minval=0, maxval=50, step=0.5, group=grpBearMode, tooltip="Fear Index minimo quando isStrongBear è attivo. Valore ridotto per bear strutturale")
 bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
 cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
 
@@ -176,6 +179,11 @@ significantGap = gapDown and (low_tf[1] - open_tf) > atr14 * 0.5
 redBar = close_tf < open_tf
 consecutiveRed = redBar and redBar[1] and redBar[2]
 
+// 7. STRUCTURAL BREAKOUT: prezzo sotto regressione lineare di lungo periodo
+linregValue = ta.linreg(close_tf, 100, 0)
+isBelowLinreg = close_tf < linregValue
+isStructuralBreakout = isBelowLinreg and isStrongBear
+
 // PANIC SCORE (0-100)
 panicScore = 0
 panicScore := panicScore + (isVolSpike ? 20 : 0)
@@ -185,9 +193,12 @@ panicScore := panicScore + (isRsiCrashing ? 10 : 0)
 panicScore := panicScore + (isPriceAccelerating ? 15 : 0)
 panicScore := panicScore + (significantGap ? 10 : 0)
 panicScore := panicScore + (consecutiveRed ? 5 : 0)
+// MODIFICA 3: Bonus strutturale quando sotto regressione lineare in Strong Bear
+panicScore := panicScore + (useBonusBreakout and isStructuralBreakout ? 15 : 0)
 
-// PANIC MODE ATTIVO se score >= 40
-isPanicMode = panicScore >= 40 and usePanicMode
+// MODIFICA 1: Soglia adattiva - in Strong Bear si abbassa da 40 a 25
+panicThreshold = (useSogliaRidottaBear and isStrongBear) ? 25 : 40
+isPanicMode = panicScore >= panicThreshold and usePanicMode
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEAR INDEX (indicatore interno di paura)
@@ -338,8 +349,9 @@ redBarsCount = 0
 redBarsCount := close_tf < open_tf ? redBarsCount[1] + 1 : 0
 hasEnoughRedBars = redBarsCount >= bearMinRedBars
 
-// Fear Index minimo per BEAR
-fearOK_bear = fearIndex >= bearMinFear
+// MODIFICA 2: Fear Index minimo adattivo - ridotto in Strong Bear
+activeBearMinFear = isStrongBear ? bearMinFearReduced : bearMinFear
+fearOK_bear = fearIndex >= activeBearMinFear
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DRAWDOWN PROTECTION
@@ -681,11 +693,12 @@ if showDashboard
 
     // Fear + Panic (combinati)
     fearColor = fearIndex > 50 ? color.red : (fearIndex > 30 ? color.orange : color.green)
-    panicColor = panicScore >= 40 ? color.red : (panicScore >= 25 ? color.orange : color.gray)
+    panicColor = panicScore >= panicThreshold ? color.red : (panicScore >= panicThreshold * 0.6 ? color.orange : color.gray)
     modeText = isPanicMode ? "PANIC!" : ""
+    threshText = str.tostring(panicScore) + "/" + str.tostring(panicThreshold) + " " + modeText
     table.cell(dashboard, 0, 4, "Fear/Panic", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
     table.cell(dashboard, 1, 4, str.tostring(fearIndex, "#.#") + "%", text_color=fearColor, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 4, str.tostring(panicScore) + "/100 " + modeText, text_color=panicColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 4, threshText, text_color=panicColor, text_size=size.small, bgcolor=rowBg)
 
     // RSI + Volume (combinati)
     rsiColor = rsi < 30 ? color.green : (rsi > 70 ? color.red : color.white)
@@ -786,9 +799,10 @@ if showDashboard
         table.cell(dashboard, 1, 13, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 13, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
 
-        // Fear requirement
-        table.cell(dashboard, 0, 14, "Fear Req", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 14, str.tostring(fearIndex, "#.#") + " / " + str.tostring(bearMinFear, "#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        // Fear requirement (mostra soglia adattiva)
+        fearReqLabel = isStrongBear ? "Fear(SB)" : "Fear Req"
+        table.cell(dashboard, 0, 14, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 14, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 14, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
         // Distance ATR
