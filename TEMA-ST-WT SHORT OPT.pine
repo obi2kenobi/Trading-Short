@@ -42,6 +42,9 @@ trailATRmult = input.float(1.5, "Trailing Stop ATR Multiplier", minval=0.5, maxv
 useStructuralStop = input.bool(true, "Stop Strutturale in Strong Bear", group=grpRisk, tooltip="In Strong Bear usa il massimo recente + buffer ATR invece dello stop % fisso")
 structStopATRbuffer = input.float(0.5, "Stop Strutturale ATR Buffer", minval=0.3, maxval=2.0, step=0.1, group=grpRisk, tooltip="Buffer ATR sopra il massimo recente per lo stop strutturale")
 structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, group=grpRisk, tooltip="Numero di barre per il calcolo del massimo recente (stop strutturale)")
+trailStrongBearMult = input.float(1.8, "Trail Multiplier Strong Bear", minval=1.0, maxval=3.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Strong Bear per dare più spazio ai rimbalzi tecnici")
+trailBearMult = input.float(1.3, "Trail Multiplier Bear", minval=1.0, maxval=2.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Bear Market")
+useDelayedTrail = input.bool(true, "Trailing Attivo Solo Dopo TP1", group=grpRisk, tooltip="Se attivo, il trailing stop si muove solo dopo che TP1 è stato colpito. Prima di TP1 lo stop iniziale (strutturale o %) rimane fisso.")
 
 grpTP = "═══ TAKE PROFIT SCALATO ═══"
 usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
@@ -478,12 +481,19 @@ if inShort and not inShort[1]
     entryMode := isPanicMode ? "PANIC" : "STANDARD"
 
 // Update trailing stop
+// Moltiplicatore regime per trailing ATR: più spazio in bear strutturale
+trailRegimeMult = isStrongBear ? trailStrongBearMult : (isBearMarket ? trailBearMult : 1.0)
+effectiveTrailATR = adaptedTrailATR * trailRegimeMult
+
+// Trailing attivo solo dopo TP1 se useDelayedTrail è abilitato
+trailActive = useDelayedTrail ? tp1_hit : true
+
 if inShort
     lowestSinceEntry := math.min(lowestSinceEntry, low_tf)
 
-    if useTrailingStop
-        // Trailing stop basato su ATR dal minimo
-        newTrailStop = lowestSinceEntry + atr14 * adaptedTrailATR
+    if useTrailingStop and trailActive
+        // Trailing stop basato su ATR dal minimo, con regime multiplier
+        newTrailStop = lowestSinceEntry + atr14 * effectiveTrailATR
 
         // Il trailing stop può solo scendere (per short), con guard per na
         if na(trailStop) or newTrailStop < trailStop
@@ -825,11 +835,13 @@ if showDashboard
         table.cell(dashboard, 1, 14, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
         table.cell(dashboard, 2, 14, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
 
-        // SL + TP status (row 15)
+        // SL + TP status (row 15) — mostra stato trailing e multiplier effettivo
         tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
         tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
-        table.cell(dashboard, 0, 15, "SL / TP", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 15, str.tostring(stopPrice, "#.##"), text_color=color.red, text_size=size.small, bgcolor=rowBg)
+        trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL ON " + str.tostring(effectiveTrailATR, "#.#") + "x" : "TRAIL WAIT")
+        trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
+        table.cell(dashboard, 0, 15, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 15, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 15, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
 
         // Exit score (row 16) — mostra soglia effettiva e indicatore (SB) se Strong Bear
