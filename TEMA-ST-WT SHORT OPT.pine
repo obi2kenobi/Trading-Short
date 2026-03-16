@@ -72,7 +72,7 @@ useSogliaRidottaBear = input.bool(true, "Soglia Ridotta in Strong Bear", group=g
 useBonusBreakout = input.bool(true, "Bonus Breakout Strutturale", group=grpPanic, tooltip="Aggiunge 15 punti al panicScore quando il prezzo è sotto la regressione lineare di lungo periodo in Strong Bear")
 
 grpDrawdown = "═══ DRAWDOWN PROTECTION ═══"
-useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown)
+useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown, tooltip="In modalità segnali manuali il DD è mostrato come riferimento ma non blocca i segnali di entry. Riattivare solo per trading completamente automatico.")
 maxDailyDrawdown = input.float(5.0, "Max Drawdown Giornaliero %", minval=1.0, maxval=15.0, step=0.5, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown giornaliero supera questa soglia") / 100
 maxTotalDrawdown = input.float(12.0, "Max Drawdown Totale %", minval=3.0, maxval=30.0, step=1.0, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown totale supera questa soglia") / 100
 maxConsecutiveLosses = input.int(5, "Max Perdite Consecutive", minval=1, maxval=8, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
@@ -444,11 +444,11 @@ directionOK = dirScore >= 2  // 2/3 bastano, non servono tutti e 3
 // FIX 5: distATR < 0 significa prezzo SOPRA la TEMA → la condizione <=maxDistATR era sempre vera
 //         Aggiunto distATR >= 0: si entra solo se il prezzo è sotto la TEMA (distanza positiva)
 shortBearConditions = directionOK and (distATR >= 0 and distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
-shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK and drawdownOK
+shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK
 shortStandard = useBearMode and shortBearConditions and shortBearFilters
 
 // CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri, ma rispetta cooldown e drawdown)
-shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike and cooldownOK and drawdownOK
+shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike and cooldownOK
 
 // CONDIZIONE SHORT FINALE
 shortOK = shortStandard or shortPanic
@@ -859,8 +859,8 @@ if showDashboard
         table.cell(dashboard, 2, 17, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
     else
         // Signal readiness (row 14)
-        signalText = shortOK ? "READY!" : (not drawdownOK ? "DD BLOCK" : "WAITING")
-        signalColor = shortOK ? color.lime : (not drawdownOK ? color.red : color.gray)
+        signalText = shortOK ? "READY!" : "WAITING"
+        signalColor = shortOK ? color.lime : color.gray
         table.cell(dashboard, 0, 14, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         table.cell(dashboard, 1, 14, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 14, "", bgcolor=rowBg)
