@@ -45,7 +45,7 @@ structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, g
 trailStrongBearMult = input.float(1.8, "Trail Multiplier Strong Bear", minval=1.0, maxval=3.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Strong Bear per dare più spazio ai rimbalzi tecnici")
 trailBearMult = input.float(1.3, "Trail Multiplier Bear", minval=1.0, maxval=2.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Bear Market")
 useDelayedTrail = input.bool(true, "Trailing Attivo Solo Dopo TP1", group=grpRisk, tooltip="Se attivo, il trailing stop si muove solo dopo che TP1 è stato colpito. Prima di TP1 lo stop iniziale (strutturale o %) rimane fisso.")
-useMCcap = input.bool(true, "Stop Cap su Entry Open", group=grpRisk, tooltip="Limita lo stop iniziale sopra l'apertura della candela di entry per evitare margin call su gap")
+useMCcap = input.bool(false, "Stop Cap su Entry Open", group=grpRisk, tooltip="ATTENZIONE: può interferire con i TP parziali scalati. Lasciare OFF in modalità segnali manuali. Testare attentamente prima di attivare.")
 mcCapATRmult = input.float(2.5, "Stop Cap ATR Multiplier", minval=1.0, maxval=5.0, step=0.1, group=grpRisk, tooltip="Stop cap = open entry + ATR * questo valore. Su 2H con ATR ~200pt: 2.5x = ~500pt = ~500$ per contratto. Aumenta per più spazio, diminuisci per meno rischio.")
 
 grpTP = "═══ TAKE PROFIT SCALATO ═══"
@@ -74,7 +74,7 @@ useSogliaRidottaBear = input.bool(true, "Soglia Ridotta in Strong Bear", group=g
 useBonusBreakout = input.bool(true, "Bonus Breakout Strutturale", group=grpPanic, tooltip="Aggiunge 15 punti al panicScore quando il prezzo è sotto la regressione lineare di lungo periodo in Strong Bear")
 
 grpDrawdown = "═══ DRAWDOWN PROTECTION ═══"
-useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown, tooltip="In modalità segnali manuali il DD è mostrato come riferimento ma non blocca i segnali di entry. Riattivare solo per trading completamente automatico.")
+useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown, tooltip="Il DD è mostrato come riferimento informativo ma NON blocca i segnali di entry. I segnali vengono generati indipendentemente dal drawdown simulato del backtest.")
 maxDailyDrawdown = input.float(5.0, "Max Drawdown Giornaliero %", minval=1.0, maxval=15.0, step=0.5, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown giornaliero supera questa soglia") / 100
 maxTotalDrawdown = input.float(12.0, "Max Drawdown Totale %", minval=3.0, maxval=30.0, step=1.0, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown totale supera questa soglia") / 100
 maxConsecutiveLosses = input.int(5, "Max Perdite Consecutive", minval=1, maxval=8, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
