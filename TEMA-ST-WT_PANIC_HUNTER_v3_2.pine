@@ -80,6 +80,10 @@ maxTotalDrawdown = input.float(12.0, "Max Drawdown Totale %", minval=3.0, maxval
 maxConsecutiveLosses = input.int(5, "Max Perdite Consecutive", minval=1, maxval=8, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
 recoveryMode = input.bool(true, "Recovery Mode (mostra segnali se BLOCKED)", group=grpDrawdown, tooltip="Se attivo, in stato BLOCKED il segnale viene calcolato e mostrato nel dashboard ma non eseguito. Permette di monitorare i setup senza operare.")
 
+grpRegimeShift = "═══ REGIME SHIFT MONITOR ═══"
+useRegimeShiftMonitor = input.bool(true, "Abilita Regime Shift Score", group=grpRegimeShift, tooltip="Calcola un punteggio 0-100 che misura quanto il regime SHORT sta perdendo forza. Solo indicativo, non modifica la logica operativa.")
+showShiftDetail = input.bool(false, "Mostra dettaglio contributi", group=grpRegimeShift, tooltip="Se attivo, mostra nel dashboard ogni componente del punteggio Regime Shift")
+
 grpFilter = "═══ FILTRI MERCATO ═══"
 useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=grpFilter, tooltip="Se disattivato, opera anche in bull market")
 useVolumeFilter = input.bool(true, "Richiedi Volume Alto", group=grpFilter)
@@ -682,6 +686,22 @@ emergencyExit = rsi > emergencyExitLevel and inShort
 exit_bar = inShort and (shouldExit or emergencyExit)
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// REGIME SHIFT MONITOR (early warning softening regime SHORT)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Componenti individuali del Regime Shift Score
+int rssSTup = trend_in == 1 and trend_in[1] == 1 and trend_in[2] == 1 ? 20 : 0
+int rssPanicDown = panicScore < nz(panicScore[1]) and nz(panicScore[1]) < nz(panicScore[2]) ? 15 : 0
+float halfFearThresh = activeBearMinFear / 2
+int rssFearLow = fearIndex < halfFearThresh and nz(fearIndex[1]) < halfFearThresh and nz(fearIndex[2]) < halfFearThresh ? 15 : 0
+int rssAboveTema = close_tf > tema_in ? 15 : 0
+int rssLowRed = redBarsCount <= 1 ? 10 : 0
+int rssAtrCompress = not na(atr14[5]) and atr14 < atr14[5] * 0.85 ? 10 : 0
+int rssExitDown = exitScore > 0 and exitScore < nz(exitScore[1]) and nz(exitScore[1]) < nz(exitScore[2]) ? 15 : 0
+
+float regimeShiftScore = math.max(0, math.min(100, rssSTup + rssPanicDown + rssFearLow + rssAboveTema + rssLowRed + rssAtrCompress + rssExitDown))
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTE EXITS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -828,7 +848,7 @@ if showLabels and not compactLabels and inShort
 // ═══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard
-    var table dashboard = table.new(position.bottom_right, 3, 22, bgcolor=color.new(color.black, 85), border_width=1)
+    var table dashboard = table.new(position.bottom_right, 3, 27, bgcolor=color.new(color.black, 85), border_width=1)
 
     // Colori sezione
     hdrBg     = color.new(color.purple, 50)
@@ -933,128 +953,161 @@ if showDashboard
         table.cell(dashboard, 1, 10, pocStr + " " + pocDir, text_color=pocCol, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, 10, confStr + warnStr, text_color=confCol, text_size=size.small, bgcolor=rowBg)
 
-    // Offset per righe successive: +3 se footprint abilitato
+    // Offset per righe successive: +3 se footprint abilitato, +2/5 se regime shift
     int fpOffset = useFP ? 3 : 0
+    int rsOffset = useRegimeShiftMonitor ? (showShiftDetail ? 5 : 2) : 0
 
-    // ── SEZIONE RISK ──  (row 8 + fpOffset)
+    // ── REGIME SHIFT MONITOR ──  (row 8 + fpOffset, solo se abilitato)
+    if useRegimeShiftMonitor
+        // Header con colore in base alla soglia
+        rsHdrBg = regimeShiftScore <= 30 ? color.new(color.red, 60) : (regimeShiftScore <= 55 ? color.new(color.orange, 60) : (regimeShiftScore <= 75 ? color.new(color.yellow, 60) : color.new(color.lime, 60)))
+        table.cell(dashboard, 0, 8 + fpOffset, "REGIME SHIFT", text_color=color.white, text_size=size.tiny, bgcolor=rsHdrBg)
+        table.cell(dashboard, 1, 8 + fpOffset, "", bgcolor=rsHdrBg)
+        table.cell(dashboard, 2, 8 + fpOffset, "", bgcolor=rsHdrBg)
+
+        // Score + interpretazione
+        rsLabel = regimeShiftScore <= 30 ? "BEAR CONFIRMED" : (regimeShiftScore <= 55 ? "SOFTENING" : (regimeShiftScore <= 75 ? "TRANSITION?" : "REGIME SHIFT"))
+        rsScoreColor = regimeShiftScore <= 30 ? color.red : (regimeShiftScore <= 55 ? color.orange : (regimeShiftScore <= 75 ? color.yellow : color.lime))
+        table.cell(dashboard, 0, 9 + fpOffset, "Score", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 9 + fpOffset, str.tostring(regimeShiftScore, "#") + "/100", text_color=rsScoreColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 9 + fpOffset, rsLabel, text_color=rsScoreColor, text_size=size.small, bgcolor=rowBg)
+
+        // Dettaglio contributi (3 righe, solo se abilitato)
+        if showShiftDetail
+            table.cell(dashboard, 0, 10 + fpOffset, "ST↑3+ " + (rssSTup > 0 ? "+20" : "—"), text_color=rssSTup > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 1, 10 + fpOffset, "Pan↓3 " + (rssPanicDown > 0 ? "+15" : "—"), text_color=rssPanicDown > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 2, 10 + fpOffset, "Fear↓ " + (rssFearLow > 0 ? "+15" : "—"), text_color=rssFearLow > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+
+            table.cell(dashboard, 0, 11 + fpOffset, ">TEMA " + (rssAboveTema > 0 ? "+15" : "—"), text_color=rssAboveTema > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 1, 11 + fpOffset, "Red≤1 " + (rssLowRed > 0 ? "+10" : "—"), text_color=rssLowRed > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 2, 11 + fpOffset, "ATR↓ " + (rssAtrCompress > 0 ? "+10" : "—"), text_color=rssAtrCompress > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+
+            table.cell(dashboard, 0, 12 + fpOffset, "Exit↓ " + (rssExitDown > 0 ? "+15" : "—"), text_color=rssExitDown > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 1, 12 + fpOffset, "", bgcolor=rowBg)
+            table.cell(dashboard, 2, 12 + fpOffset, "", bgcolor=rowBg)
+
+    // Base row per sezioni da RISK in poi
+    int r = 8 + fpOffset + rsOffset
+
+    // ── SEZIONE RISK ──  (row r)
     ddBg = not drawdownOK ? color.new(color.red, 70) : (dailyDrawdown > maxDailyDrawdown * 0.7 ? color.new(color.orange, 80) : sectRisk)
-    table.cell(dashboard, 0, 8 + fpOffset, "RISK", text_color=color.white, text_size=size.tiny, bgcolor=sectRisk)
-    table.cell(dashboard, 1, 8 + fpOffset, "", bgcolor=sectRisk)
-    table.cell(dashboard, 2, 8 + fpOffset, "", bgcolor=sectRisk)
+    table.cell(dashboard, 0, r, "RISK", text_color=color.white, text_size=size.tiny, bgcolor=sectRisk)
+    table.cell(dashboard, 1, r, "", bgcolor=sectRisk)
+    table.cell(dashboard, 2, r, "", bgcolor=sectRisk)
 
-    // Drawdown (row 9 + fpOffset)
+    // Drawdown (row r+1)
     ddText = not drawdownOK ? "BLOCKED" : "OK"
     ddColor = not drawdownOK ? color.red : color.green
-    table.cell(dashboard, 0, 9 + fpOffset, "DD Day/Tot", text_color=color.gray, text_size=size.tiny, bgcolor=ddBg)
-    table.cell(dashboard, 1, 9 + fpOffset, str.tostring(dailyDrawdown * 100, "#.#") + "% / " + str.tostring(totalDrawdown * 100, "#.#") + "%", text_color=dailyDrawdown > maxDailyDrawdown * 0.5 ? color.orange : color.white, text_size=size.small, bgcolor=ddBg)
-    table.cell(dashboard, 2, 9 + fpOffset, ddText, text_color=ddColor, text_size=size.small, bgcolor=ddBg)
+    table.cell(dashboard, 0, r + 1, "DD Day/Tot", text_color=color.gray, text_size=size.tiny, bgcolor=ddBg)
+    table.cell(dashboard, 1, r + 1, str.tostring(dailyDrawdown * 100, "#.#") + "% / " + str.tostring(totalDrawdown * 100, "#.#") + "%", text_color=dailyDrawdown > maxDailyDrawdown * 0.5 ? color.orange : color.white, text_size=size.small, bgcolor=ddBg)
+    table.cell(dashboard, 2, r + 1, ddText, text_color=ddColor, text_size=size.small, bgcolor=ddBg)
 
-    // Consecutive losses + Cooldown (row 10 + fpOffset)
+    // Consecutive losses + Cooldown (row r+2)
     cooldownText = cooldownOK ? "OK" : str.tostring(math.max(0, smartCooldown - barsSinceExit)) + " bars"
     cooldownColor = cooldownOK ? color.green : color.orange
     // Se bloccato per loss consecutive, mostra timer reset
     lossText = str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) + " loss"
     resetBarsLeft = consecutiveLosses >= maxConsecutiveLosses ? math.max(0, 20 - lossBlockBars) : 0
     resetText = resetBarsLeft > 0 ? " RST:" + str.tostring(resetBarsLeft) : ""
-    table.cell(dashboard, 0, 10 + fpOffset, "Loss/Cool", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 10 + fpOffset, lossText + resetText, text_color=consecutiveLosses >= maxConsecutiveLosses ? color.red : (consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white), text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 10 + fpOffset, cooldownText, text_color=cooldownColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 0, r + 2, "Loss/Cool", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, r + 2, lossText + resetText, text_color=consecutiveLosses >= maxConsecutiveLosses ? color.red : (consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white), text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, r + 2, cooldownText, text_color=cooldownColor, text_size=size.small, bgcolor=rowBg)
 
-    // Recovery row (row 11 + fpOffset)
+    // Recovery row (row r+3)
     recBg = not drawdownOK ? color.new(color.orange, 85) : rowBg
     recStatusText = not consecutiveLossOK ? "Losses: " + str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) : (not dailyDrawdownOK or not totalDrawdownOK ? "DD clearing" : "OK")
     recStatusColor = not drawdownOK ? color.orange : color.green
     recModeText = recoveryMode ? "MONITOR" : "--"
     recModeColor = recoveryMode ? color.orange : color.gray
-    table.cell(dashboard, 0, 11 + fpOffset, "Recovery", text_color=color.gray, text_size=size.tiny, bgcolor=recBg)
-    table.cell(dashboard, 1, 11 + fpOffset, recStatusText, text_color=recStatusColor, text_size=size.small, bgcolor=recBg)
-    table.cell(dashboard, 2, 11 + fpOffset, recModeText, text_color=recModeColor, text_size=size.small, bgcolor=recBg)
+    table.cell(dashboard, 0, r + 3, "Recovery", text_color=color.gray, text_size=size.tiny, bgcolor=recBg)
+    table.cell(dashboard, 1, r + 3, recStatusText, text_color=recStatusColor, text_size=size.small, bgcolor=recBg)
+    table.cell(dashboard, 2, r + 3, recModeText, text_color=recModeColor, text_size=size.small, bgcolor=recBg)
 
-    // Session (row 12 + fpOffset, solo su 4H)
+    // Session (row r+4, solo su 4H)
     if is4H
         sessText = inActiveSession ? "ACTIVE" : "PAUSED"
         sessColor = inActiveSession ? color.green : color.orange
-        table.cell(dashboard, 0, 12 + fpOffset, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 12 + fpOffset, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, 12 + fpOffset, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, r + 4, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 4, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 4, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
 
-    // ── SEZIONE POSIZIONE / SEGNALI ──  (row 13 + fpOffset)
+    // ── SEZIONE POSIZIONE / SEGNALI ──  (row r+5)
     posHdrBg = inShort ? color.new(color.red, 60) : color.new(color.teal, 70)
     posHdrText = inShort ? "POSIZIONE SHORT" : "IN ATTESA"
-    table.cell(dashboard, 0, 13 + fpOffset, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
-    table.cell(dashboard, 1, 13 + fpOffset, "", bgcolor=posHdrBg)
-    table.cell(dashboard, 2, 13 + fpOffset, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 0, r + 5, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
+    table.cell(dashboard, 1, r + 5, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 2, r + 5, "", bgcolor=posHdrBg)
 
-    // TP Mult + Stop Type (row 14 + fpOffset)
+    // TP Mult + Stop Type (row r+6)
     activeRegimeMult = inShort and not na(entryRegimeMult) ? entryRegimeMult : regimeMult
     regimeMultText = str.tostring(activeRegimeMult, "#.#") + "x"
     regimeMultColor = activeRegimeMult > 1.0 ? color.orange : color.white
     stopTypeText = useStructStop ? "STRUCT" : (isPanicMode ? "PANIC" : "STD")
     stopTypeColor = useStructStop ? color.orange : color.white
-    table.cell(dashboard, 0, 14 + fpOffset, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 14 + fpOffset, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 14 + fpOffset, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 0, r + 6, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, r + 6, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, r + 6, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
 
     if inShort
-        // Entry + P&L (row 15 + fpOffset)
+        // Entry + P&L (row r+7)
         pnlColor = currentProfit > 0 ? color.green : color.red
         pnlBg = currentProfit > tp1_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
-        table.cell(dashboard, 0, 15 + fpOffset, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
-        table.cell(dashboard, 1, 15 + fpOffset, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
-        table.cell(dashboard, 2, 15 + fpOffset, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 0, r + 7, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
+        table.cell(dashboard, 1, r + 7, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 2, r + 7, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
 
-        // SL + TP status (row 16 + fpOffset)
+        // SL + TP status (row r+8)
         tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
         tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
         slTypeText = not tp1_hit and useMCcap and not na(stopCap) and not na(trailStop) and math.abs(trailStop - stopCap) < 0.01 ? "CAP" : (useStructStop ? "STRUCT" : "STD")
         trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" : "WAIT " + slTypeText)
         trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
-        table.cell(dashboard, 0, 16 + fpOffset, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 16 + fpOffset, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 16 + fpOffset, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, r + 8, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 8, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 8, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
 
-        // Exit score (row 17 + fpOffset)
+        // Exit score (row r+9)
         exitPct = exitThreshold > 0 ? math.min(exitScore / exitThreshold * 100, 100) : 0
         exitSbTag = isStrongBear ? " (SB)" : ""
         exitBarText = exitScore >= exitThreshold ? "EXIT!" : str.tostring(exitScore, "#.#") + "/" + str.tostring(exitThreshold, "#.#") + exitSbTag
         exitBg = exitScore >= exitThreshold ? color.new(color.orange, 70) : rowBg
-        table.cell(dashboard, 0, 17 + fpOffset, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
-        table.cell(dashboard, 1, 17 + fpOffset, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
-        table.cell(dashboard, 2, 17 + fpOffset, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 0, r + 9, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
+        table.cell(dashboard, 1, r + 9, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 2, r + 9, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
 
-        // TP levels (row 18 + fpOffset)
-        table.cell(dashboard, 0, 18 + fpOffset, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 18 + fpOffset, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, 18 + fpOffset, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
+        // TP levels (row r+10)
+        table.cell(dashboard, 0, r + 10, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 10, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 10, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
     else
-        // Signal readiness (row 15 + fpOffset)
+        // Signal readiness (row r+7)
         signalBlocked = not drawdownOK and recoveryMode and shortOK
         signalText = signalBlocked ? "BLOCKED ◆ READY" : (shortOK ? "READY!" : (not drawdownOK ? "BLOCKED" : "WAITING"))
         signalColor = signalBlocked ? color.orange : (shortOK ? color.lime : color.gray)
         signalBg = signalBlocked ? color.new(color.orange, 85) : rowBg
         capPreviewText = useMCcap ? "Cap ~" + str.tostring(open_tf + atr14 * mcCapATRmult, "#.#") : ""
-        table.cell(dashboard, 0, 15 + fpOffset, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=signalBg)
-        table.cell(dashboard, 1, 15 + fpOffset, signalText, text_color=signalColor, text_size=size.small, bgcolor=signalBg)
-        table.cell(dashboard, 2, 15 + fpOffset, capPreviewText, text_color=color.gray, text_size=size.tiny, bgcolor=signalBg)
+        table.cell(dashboard, 0, r + 7, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=signalBg)
+        table.cell(dashboard, 1, r + 7, signalText, text_color=signalColor, text_size=size.small, bgcolor=signalBg)
+        table.cell(dashboard, 2, r + 7, capPreviewText, text_color=color.gray, text_size=size.tiny, bgcolor=signalBg)
 
-        // Entry checklist: red bars (row 16 + fpOffset)
+        // Entry checklist: red bars (row r+8)
         redBarsText = str.tostring(redBarsCount) + "/" + str.tostring(bearMinRedBars)
         redBarsColor = hasEnoughRedBars ? color.green : color.gray
-        table.cell(dashboard, 0, 16 + fpOffset, "Red Bars", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 16 + fpOffset, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 16 + fpOffset, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, r + 8, "Red Bars", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 8, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 8, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
 
-        // Fear requirement (row 17 + fpOffset)
+        // Fear requirement (row r+9)
         fearReqLabel = isStrongBear ? "Fear(SB)" : "Fear Req"
-        table.cell(dashboard, 0, 17 + fpOffset, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 17 + fpOffset, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 17 + fpOffset, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, r + 9, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 9, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 9, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
-        // Distance ATR (row 18 + fpOffset)
-        table.cell(dashboard, 0, 18 + fpOffset, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        // Distance ATR (row r+10)
+        table.cell(dashboard, 0, r + 10, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         distATROK = distATR >= 0 and distATR <= maxDistATR
-        table.cell(dashboard, 1, 18 + fpOffset, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 18 + fpOffset, distATROK ? "OK" : "--", text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 1, r + 10, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, r + 10, distATROK ? "OK" : "--", text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
@@ -1065,6 +1118,9 @@ alertcondition(shortStandard and not inShort, title="Standard SHORT Signal", mes
 alertcondition(emergencyExit, title="Emergency Exit", message="EMERGENCY EXIT triggered - Strong bounce detected!")
 alertcondition(isPanicMode and not isPanicMode[1], title="Panic Mode Activated", message="Market entering PANIC MODE - High volatility and fear detected!")
 alertcondition(not drawdownOK and drawdownOK[1], title="Drawdown Protection Active", message="TRADING PAUSED - Drawdown protection triggered. Review risk.")
+
+// Regime Shift alert
+alertcondition(useRegimeShiftMonitor and regimeShiftScore >= 56 and regimeShiftScore[1] < 56, title="Regime Shift Warning", message="REGIME SHIFT SCORE alto su {{ticker}} — verificare cambio contesto SHORT")
 
 // Footprint alerts (v3.2)
 alertcondition(useFP and fpExtremeSell and not fpExtremeSell[1], title="FP Extreme Sell", message="FOOTPRINT: Extreme selling pressure su {{ticker}} — Delta molto negativo")
