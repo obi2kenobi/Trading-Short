@@ -1052,8 +1052,9 @@ if showDashboard
 
         // Distance ATR (row 18 + fpOffset)
         table.cell(dashboard, 0, 18 + fpOffset, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 18 + fpOffset, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 18 + fpOffset, distATR <= maxDistATR ? "OK" : "--", text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        distATROK = distATR >= 0 and distATR <= maxDistATR
+        table.cell(dashboard, 1, 18 + fpOffset, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 18 + fpOffset, distATROK ? "OK" : "--", text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
