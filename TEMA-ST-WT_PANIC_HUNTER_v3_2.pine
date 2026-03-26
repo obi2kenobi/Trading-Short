@@ -1072,8 +1072,6 @@ if showDashboard
         // TP levels (row r+10)
         table.cell(dashboard, 0, r + 10, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         table.cell(dashboard, 1, r + 10, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
-        tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
-        tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
         table.cell(dashboard, 2, r + 10, tpStatus, text_color=tpStatusColor, text_size=size.tiny, bgcolor=rowBg)
     else
         // Signal readiness (row r+7)
