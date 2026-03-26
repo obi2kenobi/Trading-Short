@@ -1,10 +1,11 @@
 //@version=6
 // ──────────────────────────────────────────────────────────────────────────────
-// @title        TEMA-ST-WT PANIC HUNTER v3.2 — FOOTPRINT ENHANCED
+// @title        TEMA-ST-WT PANIC HUNTER v3.3 — FOOTPRINT ENHANCED
 // @description  Short aggressivo ottimizzato per catturare il panico di mercato
 //               Trailing stop dinamico, partial exits, panic detection avanzato
 //               v3.2: integrazione volume footprint (delta, POC, imbalances)
-// @version      3.2
+//               v3.3: Rimosso TP3 — sistema a 2 TP per eliminare residuo stoppato
+// @version      3.3
 // @author       Ottimizzato per velocità e profitto
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ atr14 = request.security(syminfo.tickerid, tf, ta.atr(14))
 atr10 = request.security(syminfo.tickerid, tf, ta.atr(10))
 
 // — STRATEGY SETTINGS —
-strategy("TEMA-ST-WT PANIC HUNTER v3.2", overlay=true,
+strategy("TEMA-ST-WT PANIC HUNTER v3.3", overlay=true,
      initial_capital    = 100000,
      default_qty_type   = strategy.percent_of_equity,
      default_qty_value  = 100,
@@ -52,13 +53,11 @@ grpTP = "═══ TAKE PROFIT SCALATO ═══"
 usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
 useDynamicTP = input.bool(true, "TP Dinamici (basati su ATR)", group=grpTP, tooltip="I TP si adattano alla volatilità corrente. I valori % diventano fallback")
 tp1_perc_input = input.float(2.5, "TP1 % (fallback se TP dinamici off)", minval=1.0, maxval=5.0, step=0.5, group=grpTP) / 100
-tp1_size = input.float(40, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP) / 100
+tp1_size = input.float(50, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP) / 100
 tp2_perc_input = input.float(5.0, "TP2 % (fallback)", minval=2.0, maxval=10.0, step=0.5, group=grpTP) / 100
-tp2_size = input.float(35, "TP2 Size %", minval=10, maxval=50, step=5, group=grpTP) / 100
-tp3_perc_input = input.float(8.0, "TP3 % finale (fallback)", minval=3.0, maxval=15.0, step=0.5, group=grpTP) / 100
+tp2_size = input.float(50, "TP2 Size %", minval=10, maxval=50, step=5, group=grpTP, tooltip="Chiude il restante 100% della posizione dopo TP1") / 100
 tpATRmult1 = input.float(1.5, "TP1 ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpTP, tooltip="TP1 = entry - ATR * questo valore")
 tpATRmult2 = input.float(3.0, "TP2 ATR Multiplier", minval=1.0, maxval=6.0, step=0.1, group=grpTP)
-tpATRmult3 = input.float(5.0, "TP3 ATR Multiplier", minval=2.0, maxval=10.0, step=0.1, group=grpTP)
 useRegimeTP = input.bool(true, "TP Adattivi al Regime", group=grpTP, tooltip="Scala i TP dinamici in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
@@ -640,11 +639,9 @@ if inShort and not inShort[1]
 // na() guard su entryATR, entryPrice e entryRegimeMult per evitare errori al primo trade
 tp1_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult1 * entryRegimeMult) / entryPrice : tp1_perc_input
 tp2_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult2 * entryRegimeMult) / entryPrice : tp2_perc_input
-tp3_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult3 * entryRegimeMult) / entryPrice : tp3_perc_input
 
 tp1Price = entryPrice * (1 - tp1_perc)
 tp2Price = entryPrice * (1 - tp2_perc)
-tp3Price = entryPrice * (1 - tp3_perc)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXIT CONDITIONS (VELOCIZZATE)
@@ -713,18 +710,16 @@ if inShort
             strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
             tp1_hit := true
 
-        // TP2 - qty_percent è relativo alla posizione rimanente (dopo TP1)
+        // TP2 - chiude tutta la posizione rimanente
         if not tp2_hit and tp1_hit and close_tf <= tp2Price
-            remainingAfterTP1 = 1.0 - tp1_size
-            tp2_qty = math.min(tp2_size / remainingAfterTP1 * 100, 100)
-            strategy.close("Short", comment="TP2", qty_percent=tp2_qty)
+            strategy.close("Short", comment="TP2")
             tp2_hit := true
 
-        // TP3 finale
-        strategy.exit("TP3/SL", from_entry="Short", stop=stopPrice, limit=tp3Price)
+        // SL attivo fino a quando TP1 e TP2 non vengono colpiti
+        strategy.exit("SL", from_entry="Short", stop=stopPrice)
     else
         // Single TP/SL
-        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp3Price)
+        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
 
     // Signal-based exit - emergency esce sempre, cover solo se TP1 già colpito o TP disabilitati
     if exit_bar
@@ -757,7 +752,6 @@ bgcolor(inShort ? color.new(color.red, 92) : na, title="In Position")
 plot(showLevels and inShort ? stopPrice : na, "Stop Loss", color=color.new(color.red, 0), linewidth=2, style=plot.style_cross)
 plot(showLevels and inShort ? tp1Price : na, "TP1", color=color.new(color.lime, 60), linewidth=1, style=plot.style_circles)
 plot(showLevels and inShort ? tp2Price : na, "TP2", color=color.new(color.lime, 40), linewidth=1, style=plot.style_circles)
-plot(showLevels and inShort ? tp3Price : na, "TP3", color=color.new(color.green, 0), linewidth=2, style=plot.style_cross)
 plot(showLevels and inShort ? entryPrice : na, "Entry", color=color.new(color.white, 0), linewidth=1, style=plot.style_circles)
 
 // Footprint POC (solo se abilitato)
@@ -798,7 +792,7 @@ if showLabels
              "SHORT " + modeText + "\n" + str.tostring(close_tf, "#.##") :
              "SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
                   "\nSL: " + str.tostring(stopPrice, "#.##") +
-                  "\nTP3: " + str.tostring(tp3Price, "#.##")
+                  "\nTP2: " + str.tostring(tp2Price, "#.##")
 
         label.new(bar_index, high_tf + labelOffset,
              text=entryText,
@@ -1078,7 +1072,9 @@ if showDashboard
         // TP levels (row r+10)
         table.cell(dashboard, 0, r + 10, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         table.cell(dashboard, 1, r + 10, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 10, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
+        tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
+        tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
+        table.cell(dashboard, 2, r + 10, tpStatus, text_color=tpStatusColor, text_size=size.tiny, bgcolor=rowBg)
     else
         // Signal readiness (row r+7)
         signalBlocked = not drawdownOK and recoveryMode and shortOK
