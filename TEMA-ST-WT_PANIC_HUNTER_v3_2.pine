@@ -1,11 +1,12 @@
 //@version=6
 // ──────────────────────────────────────────────────────────────────────────────
-// @title        TEMA-ST-WT PANIC HUNTER v3.3 — FOOTPRINT ENHANCED
+// @title        TEMA-ST-WT PANIC HUNTER v3.4 — FOOTPRINT ENHANCED
 // @description  Short aggressivo ottimizzato per catturare il panico di mercato
 //               Trailing stop dinamico, partial exits, panic detection avanzato
 //               v3.2: integrazione volume footprint (delta, POC, imbalances)
 //               v3.3: Rimosso TP3 — sistema a 2 TP per eliminare residuo stoppato
-// @version      3.3
+//               v3.4: TP ottimizzati (TP1 0.3%/40%, TP2 1.2%/60%) + Breakeven dopo TP1
+// @version      3.4
 // @author       Ottimizzato per velocità e profitto
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ atr14 = request.security(syminfo.tickerid, tf, ta.atr(14))
 atr10 = request.security(syminfo.tickerid, tf, ta.atr(10))
 
 // — STRATEGY SETTINGS —
-strategy("TEMA-ST-WT PANIC HUNTER v3.3", overlay=true,
+strategy("TEMA-ST-WT PANIC HUNTER v3.4", overlay=true,
      initial_capital    = 100000,
      default_qty_type   = strategy.percent_of_equity,
      default_qty_value  = 100,
@@ -46,18 +47,20 @@ structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, g
 trailStrongBearMult = input.float(1.8, "Trail Multiplier Strong Bear", minval=1.0, maxval=3.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Strong Bear per dare più spazio ai rimbalzi tecnici")
 trailBearMult = input.float(1.3, "Trail Multiplier Bear", minval=1.0, maxval=2.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Bear Market")
 useDelayedTrail = input.bool(true, "Trailing Attivo Solo Dopo TP1", group=grpRisk, tooltip="Se attivo, il trailing stop si muove solo dopo che TP1 è stato colpito. Prima di TP1 lo stop iniziale (strutturale o %) rimane fisso.")
+useBreakevenAfterTP1 = input.bool(true, "Breakeven Stop Dopo TP1", group=grpRisk, tooltip="Dopo che TP1 viene colpito, lo stop loss si sposta al prezzo di entry (breakeven). Protegge il residuo da inversioni.")
+breakEvenBuffer = input.float(0.05, "Breakeven Buffer %", minval=0.0, maxval=0.5, step=0.01, group=grpRisk, tooltip="Piccolo buffer sotto entry per coprire spread/slippage. 0.05% = ~10 punti su NAS")
 useMCcap = input.bool(false, "Stop Cap su Entry Open", group=grpRisk, tooltip="ATTENZIONE: può interferire con i TP parziali scalati. Lasciare OFF in modalità segnali manuali. Testare attentamente prima di attivare.")
 mcCapATRmult = input.float(2.5, "Stop Cap ATR Multiplier", minval=1.0, maxval=5.0, step=0.1, group=grpRisk, tooltip="Stop cap = open entry + ATR * questo valore. Su 2H con ATR ~200pt: 2.5x = ~500pt = ~500$ per contratto. Aumenta per più spazio, diminuisci per meno rischio.")
 
 grpTP = "═══ TAKE PROFIT SCALATO ═══"
 usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
 useDynamicTP = input.bool(true, "TP Dinamici (basati su ATR)", group=grpTP, tooltip="I TP si adattano alla volatilità corrente. I valori % diventano fallback")
-tp1_perc_input = input.float(2.5, "TP1 % (fallback se TP dinamici off)", minval=1.0, maxval=5.0, step=0.5, group=grpTP) / 100
-tp1_size = input.float(50, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP) / 100
-tp2_perc_input = input.float(5.0, "TP2 % (fallback)", minval=2.0, maxval=10.0, step=0.5, group=grpTP) / 100
-tp2_size = input.float(50, "TP2 Size %", minval=10, maxval=50, step=5, group=grpTP, tooltip="Chiude il restante 100% della posizione dopo TP1") / 100
-tpATRmult1 = input.float(1.5, "TP1 ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpTP, tooltip="TP1 = entry - ATR * questo valore")
-tpATRmult2 = input.float(3.0, "TP2 ATR Multiplier", minval=1.0, maxval=6.0, step=0.1, group=grpTP)
+tp1_perc_input = input.float(0.3, "TP1 %", minval=0.1, maxval=5.0, step=0.1, group=grpTP, tooltip="TP1 % — soglia bassa per catturare l'88% dei trade") / 100
+tp1_size = input.float(40, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP, tooltip="TP1 chiude il 40%, il 60% corre verso TP2") / 100
+tp2_perc_input = input.float(1.2, "TP2 %", minval=0.5, maxval=10.0, step=0.1, group=grpTP, tooltip="TP2 % — chiude tutta la posizione rimanente") / 100
+tp2_size = input.float(60, "TP2 Size %", minval=10, maxval=60, step=5, group=grpTP, tooltip="TP2 chiude il 60% restante — tutta la posizione") / 100
+tpATRmult1 = input.float(0.5, "TP1 ATR Multiplier", minval=0.1, maxval=4.0, step=0.1, group=grpTP, tooltip="TP1 ATR Multiplier — ~60-70 punti su NAS")
+tpATRmult2 = input.float(1.8, "TP2 ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP2 ATR Multiplier — ~240 punti su NAS")
 useRegimeTP = input.bool(true, "TP Adattivi al Regime", group=grpTP, tooltip="Scala i TP dinamici in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
@@ -622,6 +625,12 @@ if inShort
         if not na(stopCap) and not na(trailStop) and trailStop > stopCap
             trailStop := stopCap
 
+    // BREAKEVEN: dopo TP1, lo stop non sale sopra entry price (con buffer)
+    if useBreakevenAfterTP1 and tp1_hit
+        breakEvenPrice = entryPrice * (1 + breakEvenBuffer / 100)
+        if na(trailStop) or trailStop > breakEvenPrice
+            trailStop := breakEvenPrice
+
 // Calcolo livelli
 activeStopPerc = isPanicMode ? adaptedStopPanic : adaptedStopNormal
 // Fallback senza trailing: in Strong Bear usa strutturale, altrimenti % fisso
@@ -856,7 +865,7 @@ if showDashboard
     statusDot = inShort ? "SHORT" : (shortOK ? "READY" : "IDLE")
     statusCol = inShort ? color.red : (shortOK ? color.lime : color.gray)
     table.cell(dashboard, 0, 0, "PANIC HUNTER", text_color=color.white, text_size=size.normal, bgcolor=hdrBg)
-    table.cell(dashboard, 1, 0, "v3.2", text_color=color.new(color.white, 30), text_size=size.normal, bgcolor=hdrBg)
+    table.cell(dashboard, 1, 0, "v3.4", text_color=color.new(color.white, 30), text_size=size.normal, bgcolor=hdrBg)
     table.cell(dashboard, 2, 0, tfLabel + " " + statusDot, text_color=statusCol, text_size=size.normal, bgcolor=hdrBg)
 
     // ── STATUS BAR: filtri rapidi con indicatori ──  (row 1)
@@ -1054,7 +1063,8 @@ if showDashboard
         tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
         tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
         slTypeText = not tp1_hit and useMCcap and not na(stopCap) and not na(trailStop) and math.abs(trailStop - stopCap) < 0.01 ? "CAP" : (useStructStop ? "STRUCT" : "STD")
-        trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" : "WAIT " + slTypeText)
+        beActiveText = useBreakevenAfterTP1 and tp1_hit ? " BE" : ""
+        trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" + beActiveText : "WAIT " + slTypeText)
         trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
         table.cell(dashboard, 0, r + 8, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         table.cell(dashboard, 1, r + 8, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
@@ -1121,3 +1131,6 @@ alertcondition(useFP and fpExtremeSell and not fpExtremeSell[1], title="FP Extre
 alertcondition(useFP and fpDeltaDivShort and not fpDeltaDivShort[1], title="FP Delta Div SHORT", message="FOOTPRINT: Delta divergence bearish su {{ticker}} — Prezzo sale, delta scende")
 alertcondition(useFP and inShort and fpDeltaDivExit and fpExitWarningCount >= 2, title="FP Exit Warning", message="FOOTPRINT: Exit warning — Delta divergence con multipli segnali bullish")
 alertcondition(useFP and fpAbsorption and not fpAbsorption[1], title="FP Absorption", message="FOOTPRINT: Absorption pattern su {{ticker}} — Buyer intrappolati, delta positivo con candela rossa")
+
+// Breakeven alert (v3.4)
+alertcondition(useBreakevenAfterTP1 and tp1_hit and not tp1_hit[1], title="Breakeven Activated", message="BREAKEVEN attivato su {{ticker}} — Stop spostato a entry price dopo TP1")
