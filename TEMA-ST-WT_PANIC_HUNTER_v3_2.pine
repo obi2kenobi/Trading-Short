@@ -6,12 +6,13 @@
 //               v3.2: integrazione volume footprint (delta, POC, imbalances)
 //               v3.3: Rimosso TP3 — sistema a 2 TP per eliminare residuo stoppato
 //               v3.4: TP ottimizzati (TP1 0.3%/40%, TP2 1.2%/60%) + Breakeven dopo TP1
+//               Fix: TF operativo ora automatico da grafico (rimosso input manuale)
 // @version      3.4
 // @author       Ottimizzato per velocità e profitto
 // ──────────────────────────────────────────────────────────────────────────────
 
-// — INPUT TIMEFRAME —
-tf = input.string("120", "Timeframe operativo", options = ["60","120","240","D"])
+// — TIMEFRAME —
+tf = timeframe.period
 tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"])
 
 // — DATI MULTITF —
@@ -147,16 +148,20 @@ isStrongBear = isBearMarket and ema50_htf < tema200_htf
 // PARAMETRI ADATTIVI PER TIMEFRAME
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Timeframe detection: 4h ha movimenti più veloci, 1D più lenti e significativi
-is4H = tf == "240"
-isDaily = tf == "D"
+// Timeframe detection
+is15m = timeframe.period == "15"
+is30m = timeframe.period == "30"
+is45m = timeframe.period == "45"
+isSubHourly = is15m or is30m or is45m
+is4H = timeframe.period == "240"
+isDaily = timeframe.period == "D" or timeframe.period == "1D"
 isHighTF = isDaily
 
-// Moltiplicatore adattivo: 1D richiede soglie più larghe, 4H più strette
-tfStopMult   = isDaily ? 1.4 : (is4H ? 1.0 : 1.2)  // SL più largo su 1D
-tfTrailMult  = isDaily ? 1.3 : (is4H ? 1.0 : 1.1)  // Trailing più largo su 1D
-tfPanicMult  = isDaily ? 1.5 : (is4H ? 1.0 : 1.2)  // Panic bar più significativa su 1D
-tfCooldownMult = isDaily ? 0.5 : (is4H ? 1.0 : 0.75)  // Meno cooldown su 1D (meno barre)
+// Moltiplicatore adattivo per TF
+tfStopMult     = isDaily ? 1.4 : (is4H ? 1.0 : (isSubHourly ? 0.9 : 1.2))
+tfTrailMult    = isDaily ? 1.3 : (is4H ? 1.0 : (isSubHourly ? 0.9 : 1.1))
+tfPanicMult    = isDaily ? 1.5 : (is4H ? 1.0 : (isSubHourly ? 0.8 : 1.2))
+tfCooldownMult = isDaily ? 0.5 : (is4H ? 1.0 : (isSubHourly ? 1.5 : 0.75))
 
 // Parametri adattati
 adaptedStopNormal = stopPerc_normal * tfStopMult
@@ -861,7 +866,7 @@ if showDashboard
     rowBg     = color.new(color.black, 90)
 
     // ── HEADER ──  (row 0)
-    tfLabel = tf == "60" ? "1H" : (tf == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : tf)))
+    tfLabel = is15m ? "15m" : (is30m ? "30m" : (is45m ? "45m" : (tf == "60" ? "1H" : (tf == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : tf))))))
     statusDot = inShort ? "SHORT" : (shortOK ? "READY" : "IDLE")
     statusCol = inShort ? color.red : (shortOK ? color.lime : color.gray)
     table.cell(dashboard, 0, 0, "PANIC HUNTER", text_color=color.white, text_size=size.normal, bgcolor=hdrBg)
