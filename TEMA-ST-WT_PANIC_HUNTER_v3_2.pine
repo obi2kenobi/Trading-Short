@@ -852,6 +852,95 @@ if showLabels and not compactLabels and inShort
              size=size.tiny)
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LINEE ORIZZONTALI TP1 / TP2 / ENTRY / STOP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var line lineTP1   = na
+var line lineTP2   = na
+var line lineEntry = na
+var line lineStop  = na
+var label lblTP1   = na
+var label lblTP2   = na
+var label lblEntry = na
+var label lblStop  = na
+
+if inShort
+    // — TP1 —
+    if na(lineTP1)
+        lineTP1 := line.new(bar_index, tp1Price, bar_index + 1, tp1Price, color=color.new(color.lime, 0), style=line.style_dashed, width=2, extend=extend.right)
+    else
+        line.set_xy1(lineTP1, bar_index, tp1Price)
+        line.set_xy2(lineTP1, bar_index + 1, tp1Price)
+    if na(lblTP1)
+        lblTP1 := label.new(bar_index, tp1Price, text="TP1 " + str.tostring(tp1Price, "#.#"), style=label.style_label_left, color=color.new(#2E7D32, 0), textcolor=color.white, size=size.small)
+    else
+        label.set_xy(lblTP1, bar_index, tp1Price)
+        label.set_text(lblTP1, "TP1 " + str.tostring(tp1Price, "#.#"))
+
+    // — TP2 —
+    if na(lineTP2)
+        lineTP2 := line.new(bar_index, tp2Price, bar_index + 1, tp2Price, color=color.new(color.green, 0), style=line.style_solid, width=2, extend=extend.right)
+    else
+        line.set_xy1(lineTP2, bar_index, tp2Price)
+        line.set_xy2(lineTP2, bar_index + 1, tp2Price)
+    if na(lblTP2)
+        lblTP2 := label.new(bar_index, tp2Price, text="TP2 " + str.tostring(tp2Price, "#.#"), style=label.style_label_left, color=color.new(#1B5E20, 0), textcolor=color.white, size=size.small)
+    else
+        label.set_xy(lblTP2, bar_index, tp2Price)
+        label.set_text(lblTP2, "TP2 " + str.tostring(tp2Price, "#.#"))
+
+    // — ENTRY —
+    if na(lineEntry)
+        lineEntry := line.new(bar_index, entryPrice, bar_index + 1, entryPrice, color=color.new(color.yellow, 30), style=line.style_dotted, width=1, extend=extend.right)
+    else
+        line.set_xy1(lineEntry, bar_index, entryPrice)
+        line.set_xy2(lineEntry, bar_index + 1, entryPrice)
+    if na(lblEntry)
+        lblEntry := label.new(bar_index, entryPrice, text="ENTRY " + str.tostring(entryPrice, "#.#"), style=label.style_label_left, color=color.new(color.yellow, 30), textcolor=color.white, size=size.small)
+    else
+        label.set_xy(lblEntry, bar_index, entryPrice)
+        label.set_text(lblEntry, "ENTRY " + str.tostring(entryPrice, "#.#"))
+
+    // — STOP (trailing → aggiorna testo ogni barra) —
+    if na(lineStop)
+        lineStop := line.new(bar_index, stopPrice, bar_index + 1, stopPrice, color=color.new(color.red, 20), style=line.style_dashed, width=2, extend=extend.right)
+    else
+        line.set_xy1(lineStop, bar_index, stopPrice)
+        line.set_xy2(lineStop, bar_index + 1, stopPrice)
+    if na(lblStop)
+        lblStop := label.new(bar_index, stopPrice, text="SL " + str.tostring(stopPrice, "#.#"), style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=size.small)
+    else
+        label.set_xy(lblStop, bar_index, stopPrice)
+        label.set_text(lblStop, "SL " + str.tostring(stopPrice, "#.#"))
+
+else
+    // Posizione chiusa → cancella tutto
+    if not na(lineTP1)
+        line.delete(lineTP1)
+        lineTP1 := na
+    if not na(lineTP2)
+        line.delete(lineTP2)
+        lineTP2 := na
+    if not na(lineEntry)
+        line.delete(lineEntry)
+        lineEntry := na
+    if not na(lineStop)
+        line.delete(lineStop)
+        lineStop := na
+    if not na(lblTP1)
+        label.delete(lblTP1)
+        lblTP1 := na
+    if not na(lblTP2)
+        label.delete(lblTP2)
+        lblTP2 := na
+    if not na(lblEntry)
+        label.delete(lblEntry)
+        lblEntry := na
+    if not na(lblStop)
+        label.delete(lblStop)
+        lblStop := na
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
