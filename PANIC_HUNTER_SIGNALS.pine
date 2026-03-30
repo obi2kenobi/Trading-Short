@@ -480,7 +480,7 @@ if showDashboard
 
     // Offset
     int fpOffset = useFP ? 3 : 0
-    int rsOffset = useRegimeShiftMonitor ? (showShiftDetail ? 5 : 2) : 0
+    int rsOffset = useRegimeShiftMonitor ? (showShiftDetail ? 4 : 2) : 0
 
     // ── REGIME SHIFT MONITOR ──
     if useRegimeShiftMonitor
@@ -504,9 +504,6 @@ if showDashboard
             table.cell(dashboard, 1, 11 + fpOffset, "NoRed " + (rssLowRed > 0 ? "+10" : "—"), text_color=rssLowRed > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
             table.cell(dashboard, 2, 11 + fpOffset, "ATR↓ " + (rssAtrCompress > 0 ? "+10" : "—"), text_color=rssAtrCompress > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
 
-            table.cell(dashboard, 0, 12 + fpOffset, "Exit↓ " + (rssExitDown > 0 ? "+15" : "—"), text_color=rssExitDown > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowAlt)
-            table.cell(dashboard, 1, 12 + fpOffset, "", bgcolor=rowAlt)
-            table.cell(dashboard, 2, 12 + fpOffset, "", bgcolor=rowAlt)
 
     // Base row
     int s = 8 + fpOffset + rsOffset
