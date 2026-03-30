@@ -77,7 +77,7 @@ grpDrawdown = "═══ DRAWDOWN PROTECTION ═══"
 useDrawdownProtection = input.bool(true, "Abilita Protezione Drawdown", group=grpDrawdown, tooltip="Il DD è mostrato come riferimento informativo ma NON blocca i segnali di entry. I segnali vengono generati indipendentemente dal drawdown simulato del backtest.")
 maxDailyDrawdown = input.float(5.0, "Max Drawdown Giornaliero %", minval=1.0, maxval=15.0, step=0.5, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown giornaliero supera questa soglia") / 100
 maxTotalDrawdown = input.float(12.0, "Max Drawdown Totale %", minval=3.0, maxval=30.0, step=1.0, group=grpDrawdown, tooltip="Blocca nuovi trade se il drawdown totale supera questa soglia") / 100
-maxConsecutiveLosses = input.int(5, "Max Perdite Consecutive", minval=1, maxval=8, group=grpDrawdown, tooltip="Dopo N perdite consecutive, pausa forzata")
+
 
 grpFilter = "═══ FILTRI MERCATO ═══"
 useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=grpFilter, tooltip="Se disattivato, opera anche in bull market")
@@ -388,33 +388,10 @@ var float peakEquity = strategy.initial_capital
 peakEquity := math.max(peakEquity, strategy.equity)
 totalDrawdown = peakEquity > 0 ? (peakEquity - strategy.equity) / peakEquity : 0.0
 
-// Track perdite consecutive
-var int consecutiveLosses = 0
-var int lossBlockBar = 0  // barra in cui è scattato il blocco
-if inShort[1] and not inShort
-    // FIX 4: usava strategy.equity[1] che è impreciso (risente di open PnL e altri fattori).
-    // strategy.closedtrades.profit() restituisce il P&L netto del trade appena chiuso.
-    nTrades = strategy.closedtrades
-    if nTrades > 0
-        lastTradeProfit = strategy.closedtrades.profit(nTrades - 1)
-        if lastTradeProfit < 0
-            consecutiveLosses += 1
-            if consecutiveLosses >= maxConsecutiveLosses
-                lossBlockBar := bar_index
-        else
-            consecutiveLosses := 0
-
-// Auto-reset: dopo 20 barre di pausa forzata, resetta le perdite consecutive
-// Così il bot non resta bloccato per sempre
-lossBlockBars = bar_index - lossBlockBar
-if consecutiveLosses >= maxConsecutiveLosses and lossBlockBars >= 20
-    consecutiveLosses := 0
-
 // Circuit breaker attivo?
 dailyDrawdownOK = not useDrawdownProtection or dailyDrawdown < maxDailyDrawdown
 totalDrawdownOK = not useDrawdownProtection or totalDrawdown < maxTotalDrawdown
-consecutiveLossOK = not useDrawdownProtection or consecutiveLosses < maxConsecutiveLosses
-drawdownOK = dailyDrawdownOK and totalDrawdownOK and consecutiveLossOK
+drawdownOK = dailyDrawdownOK and totalDrawdownOK
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SIGNALS
@@ -695,7 +672,7 @@ if showLabels and not compactLabels and inShort
 // ═══════════════════════════════════════════════════════════════════════════════
 
 if showDashboard
-    var table dashboard = table.new(position.bottom_right, 3, 18, bgcolor=color.new(color.black, 85), border_width=1)
+    var table dashboard = table.new(position.bottom_right, 3, 17, bgcolor=color.new(color.black, 85), border_width=1)
 
     // Colori sezione
     hdrBg     = color.new(color.purple, 50)
@@ -786,97 +763,89 @@ if showDashboard
     table.cell(dashboard, 1, 9, str.tostring(dailyDrawdown * 100, "#.#") + "% / " + str.tostring(totalDrawdown * 100, "#.#") + "%", text_color=dailyDrawdown > maxDailyDrawdown * 0.5 ? color.orange : color.white, text_size=size.small, bgcolor=ddBg)
     table.cell(dashboard, 2, 9, ddText, text_color=ddColor, text_size=size.small, bgcolor=ddBg)
 
-    // Consecutive losses (row 10)
-    lossText = str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) + " loss"
-    resetBarsLeft = consecutiveLosses >= maxConsecutiveLosses ? math.max(0, 20 - lossBlockBars) : 0
-    resetText = resetBarsLeft > 0 ? " RST:" + str.tostring(resetBarsLeft) : ""
-    table.cell(dashboard, 0, 10, "Losses", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 10, lossText + resetText, text_color=consecutiveLosses >= maxConsecutiveLosses ? color.red : (consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white), text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 10, "", bgcolor=rowBg)
-
-    // Session (row 11, solo su 4H)
+    // Session (row 10, solo su 4H)
     if is4H
         sessText = inActiveSession ? "ACTIVE" : "PAUSED"
         sessColor = inActiveSession ? color.green : color.orange
-        table.cell(dashboard, 0, 11, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 11, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, 11, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, 10, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 10, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, 10, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
 
-    // ── SEZIONE POSIZIONE / SEGNALI ──  (row 12)
+    // ── SEZIONE POSIZIONE / SEGNALI ──  (row 11)
     posHdrBg = inShort ? color.new(color.red, 60) : color.new(color.teal, 70)
     posHdrText = inShort ? "POSIZIONE SHORT" : "IN ATTESA"
-    table.cell(dashboard, 0, 12, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
-    table.cell(dashboard, 1, 12, "", bgcolor=posHdrBg)
-    table.cell(dashboard, 2, 12, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 0, 11, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
+    table.cell(dashboard, 1, 11, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 2, 11, "", bgcolor=posHdrBg)
 
-    // TP Mult + Stop Type (row 13) — mostra entryRegimeMult in posizione, regimeMult in attesa
+    // TP Mult + Stop Type (row 12) — mostra entryRegimeMult in posizione, regimeMult in attesa
     activeRegimeMult = inShort and not na(entryRegimeMult) ? entryRegimeMult : regimeMult
     regimeMultText = str.tostring(activeRegimeMult, "#.#") + "x"
     regimeMultColor = activeRegimeMult > 1.0 ? color.orange : color.white
     stopTypeText = useStructStop ? "STRUCT" : (isPanicMode ? "PANIC" : "STD")
     stopTypeColor = useStructStop ? color.orange : color.white
-    table.cell(dashboard, 0, 13, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 13, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 13, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 0, 12, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, 12, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 12, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
 
     if inShort
-        // Entry + P&L (row 14)
+        // Entry + P&L (row 13)
         pnlColor = currentProfit > 0 ? color.green : color.red
         pnlBg = currentProfit > tp1_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
-        table.cell(dashboard, 0, 14, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
-        table.cell(dashboard, 1, 14, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
-        table.cell(dashboard, 2, 14, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 0, 13, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
+        table.cell(dashboard, 1, 13, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 2, 13, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
 
-        // SL + TP status (row 15) — mostra stato trailing, cap/struct, e multiplier effettivo
+        // SL + TP status (row 14) — mostra stato trailing, cap/struct, e multiplier effettivo
         tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
         tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
         // Stato stop pre-TP1: mostra se cap o strutturale è attivo
         slTypeText = not tp1_hit and useMCcap and not na(stopCap) and not na(trailStop) and math.abs(trailStop - stopCap) < 0.01 ? "CAP" : (useStructStop ? "STRUCT" : "STD")
         trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" : "WAIT " + slTypeText)
         trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
-        table.cell(dashboard, 0, 15, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 15, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 15, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, 14, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 14, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 14, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
 
-        // Exit score (row 16) — mostra soglia effettiva e indicatore (SB) se Strong Bear
+        // Exit score (row 15) — mostra soglia effettiva e indicatore (SB) se Strong Bear
         exitPct = exitThreshold > 0 ? math.min(exitScore / exitThreshold * 100, 100) : 0
         exitSbTag = isStrongBear ? " (SB)" : ""
         exitBarText = exitScore >= exitThreshold ? "EXIT!" : str.tostring(exitScore, "#.#") + "/" + str.tostring(exitThreshold, "#.#") + exitSbTag
         exitBg = exitScore >= exitThreshold ? color.new(color.orange, 70) : rowBg
-        table.cell(dashboard, 0, 16, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
-        table.cell(dashboard, 1, 16, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
-        table.cell(dashboard, 2, 16, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 0, 15, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
+        table.cell(dashboard, 1, 15, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 2, 15, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
 
-        // TP levels (row 17)
-        table.cell(dashboard, 0, 17, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 17, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, 17, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
+        // TP levels (row 16)
+        table.cell(dashboard, 0, 16, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 16, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, 16, str.tostring(tp3Price, "#.#"), text_color=color.green, text_size=size.tiny, bgcolor=rowBg)
     else
-        // Signal readiness (row 14)
+        // Signal readiness (row 13)
         signalText = shortOK ? "READY!" : "WAITING"
         signalColor = shortOK ? color.lime : color.gray
         capPreviewText = useMCcap ? "Cap ~" + str.tostring(open_tf + atr14 * mcCapATRmult, "#.#") : ""
-        table.cell(dashboard, 0, 14, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 14, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 14, capPreviewText, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 0, 13, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 13, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 13, capPreviewText, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
 
-        // Entry checklist: red bars (row 15)
+        // Entry checklist: red bars (row 14)
         redBarsText = str.tostring(redBarsCount) + "/" + str.tostring(bearMinRedBars)
         redBarsColor = hasEnoughRedBars ? color.green : color.gray
-        table.cell(dashboard, 0, 15, "Red Bars", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 15, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 15, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, 14, "Red Bars", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 14, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 14, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
 
-        // Fear requirement (row 16)
+        // Fear requirement (row 15)
         fearReqLabel = isStrongBear ? "Fear(SB)" : "Fear Req"
-        table.cell(dashboard, 0, 16, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 16, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 16, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, 15, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 15, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 15, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
-        // Distance ATR (row 17)
-        table.cell(dashboard, 0, 17, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, 17, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, 17, distATR <= maxDistATR ? "OK" : "--", text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        // Distance ATR (row 16)
+        table.cell(dashboard, 0, 16, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 16, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 16, distATR <= maxDistATR ? "OK" : "--", text_color=distATR <= maxDistATR ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
