@@ -676,8 +676,9 @@ if inShort
             strategy.close("Short", comment="TP2")
             tp2_hit := true
 
-        // SL attivo fino a quando TP1 e TP2 non vengono colpiti
-        strategy.exit("SL", from_entry="Short", stop=stopPrice)
+        // SL attivo solo se la posizione non è stata chiusa dai TP
+        if not tp2_hit
+            strategy.exit("SL", from_entry="Short", stop=stopPrice)
     else
         // Single TP/SL
         strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
