@@ -415,8 +415,8 @@ if inShort[1] and not inShort
 // ENTRY SIGNALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// CONDIZIONE SHORT PANIC — Supertrend DOWN obbligatorio
-shortOK = isPanicMode and trend_in == -1 and (wtDown or isRsiPanic) and isVolSpike
+// CONDIZIONE SHORT PANIC — Bear Market + Supertrend DOWN obbligatori
+shortOK = isPanicMode and isBearMarket and trend_in == -1 and (wtDown or isRsiPanic) and isVolSpike
 
 // Entry
 // FIX 3: barstate.isconfirmed evita entry su tick intrabar non confermati (anti-repainting)
@@ -814,12 +814,15 @@ if showDashboard
     table.cell(dashboard, 1, 0, tfLabel, text_color=color.white, text_size=size.small, bgcolor=hdrBg)
     table.cell(dashboard, 2, 0, statusDot, text_color=statusCol, text_size=size.small, bgcolor=hdrBg)
 
-    // ── SUPERTREND FILTER ──
-    stFilterText = trend_in == -1 ? "ST DOWN — SHORT OK" : "ST UP — BLOCKED"
-    stFilterColor = trend_in == -1 ? color.lime : color.red
-    table.cell(dashboard, 0, 1, "Filter", text_color=color.gray, text_size=size.tiny, bgcolor=sectBg)
-    table.cell(dashboard, 1, 1, stFilterText, text_color=stFilterColor, text_size=size.small, bgcolor=sectBg)
-    table.cell(dashboard, 2, 1, "", bgcolor=sectBg)
+    // ── FILTRI ENTRY ──
+    bearOK = isBearMarket ? "BEAR" : "NO BEAR"
+    bearCol = isBearMarket ? color.lime : color.red
+    stOK = trend_in == -1 ? "ST DOWN" : "ST UP"
+    stCol = trend_in == -1 ? color.lime : color.red
+    bothOK = isBearMarket and trend_in == -1
+    table.cell(dashboard, 0, 1, bothOK ? "SHORT OK" : "BLOCKED", text_color=bothOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectBg)
+    table.cell(dashboard, 1, 1, bearOK, text_color=bearCol, text_size=size.small, bgcolor=sectBg)
+    table.cell(dashboard, 2, 1, stOK, text_color=stCol, text_size=size.small, bgcolor=sectBg)
 
     // ── MERCATO ──
     table.cell(dashboard, 0, 2, "MERCATO", text_color=color.new(color.white, 30), text_size=size.tiny, bgcolor=sectBg)
