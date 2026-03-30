@@ -39,7 +39,7 @@ grpRisk = "═══ RISK MANAGEMENT ═══"
 stopPerc_normal = input.float(2.0, "Stop Loss Normale %", minval=0.5, maxval=5.0, step=0.1, group=grpRisk) / 100
 stopPerc_panic = input.float(1.2, "Stop Loss Panic Mode %", minval=0.3, maxval=3.0, step=0.1, group=grpRisk) / 100
 useTrailingStop = input.bool(true, "Usa Trailing Stop", group=grpRisk)
-trailATRmult = input.float(1.5, "Trailing Stop ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpRisk)
+trailATRmult = input.float(1.0, "Trailing Stop ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpRisk)
 useStructuralStop = input.bool(true, "Stop Strutturale in Strong Bear", group=grpRisk, tooltip="In Strong Bear usa il massimo recente + buffer ATR invece dello stop % fisso")
 structStopATRbuffer = input.float(0.5, "Stop Strutturale ATR Buffer", minval=0.3, maxval=2.0, step=0.1, group=grpRisk, tooltip="Buffer ATR sopra il massimo recente per lo stop strutturale")
 structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, group=grpRisk, tooltip="Numero di barre per il calcolo del massimo recente (stop strutturale)")
@@ -290,7 +290,7 @@ if fpPanicBoostEnabled and useFP and not na(fpDelta)
 panicScore := panicScore + fpPanicBonus
 
 // MODIFICA 1: Soglia adattiva - in Strong Bear si abbassa da 40 a 25
-panicThreshold = (useSogliaRidottaBear and isStrongBear) ? 25 : 40
+panicThreshold = (useSogliaRidottaBear and isStrongBear) ? 20 : 35
 isPanicMode = panicScore >= panicThreshold and usePanicMode
 
 // ═══════════════════════════════════════════════════════════════════════════════
