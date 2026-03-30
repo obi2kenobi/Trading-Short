@@ -80,12 +80,6 @@ grpRegimeShift = "═══ REGIME SHIFT MONITOR ═══"
 useRegimeShiftMonitor = input.bool(true, "Abilita Regime Shift Score", group=grpRegimeShift, tooltip="Calcola un punteggio 0-100 che misura quanto il regime SHORT sta perdendo forza. Solo indicativo, non modifica la logica operativa.")
 showShiftDetail = input.bool(false, "Mostra dettaglio contributi", group=grpRegimeShift, tooltip="Se attivo, mostra nel dashboard ogni componente del punteggio Regime Shift")
 
-grpFilter = "═══ FILTRI MERCATO ═══"
-useVolumeFilter = input.bool(true, "Richiedi Volume Alto", group=grpFilter)
-useLateralFilter = input.bool(true, "Evita Mercati Laterali", group=grpFilter)
-useSessionFilter = input.bool(true, "Filtro Sessione (solo 4H)", group=grpFilter, tooltip="Su 4H, evita entry in orari a bassa liquidità. Ignorato su Daily")
-sessionStart = input.int(8, "Sessione Inizio (UTC)", minval=0, maxval=23, group=grpFilter, tooltip="Ora UTC di inizio sessione attiva")
-sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grpFilter, tooltip="Ora UTC di fine sessione attiva")
 
 grpFP = "═══ FOOTPRINT ORDER FLOW ═══"
 useFP = input.bool(true, "Enable Footprint Data", group=grpFP, tooltip="Richiede piano Premium/Ultimate. Se disabilitato, il sistema funziona esattamente come v3.1")
@@ -398,28 +392,6 @@ wtBullish = wt1_out > wt2_out
 // ENTRY CONDITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Filtro lateralità (più permissivo in panic)
-tema_slope_ratio = math.abs(tema_slope) / atr10
-activeSlopeThreshold = isPanicMode ? 0.005 : (isBearMarket ? 0.012 : 0.015)
-isFlatSlope = tema_slope_ratio < activeSlopeThreshold
-
-rangeHigh5 = ta.highest(high, 5)
-rangeLow5  = ta.lowest(low, 5)
-rangeCond  = (rangeHigh5 - rangeLow5) / close < 0.008
-isLateral  = isFlatSlope and rangeCond and not isPanicMode
-
-// Filtro volume (più permissivo in panic)
-activeVolMult = isPanicMode ? 0.6 : (isBearMarket ? 0.7 : 0.9)
-highVolume = volume > volMA20 * activeVolMult
-
-// Filtro sessione: su 4H evita orari morti, su Daily sempre attivo
-currentHour = hour(time, "UTC")
-inActiveSession = sessionStart < sessionEnd ? (currentHour >= sessionStart and currentHour < sessionEnd) : (currentHour >= sessionStart or currentHour < sessionEnd)
-sessionOK = (not useSessionFilter) or isDaily or inActiveSession
-
-// Filtri condizionali
-volOK = useVolumeFilter ? highVolume : true
-latOK = useLateralFilter ? not isLateral : true
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // POSITION VARIABLES
@@ -443,8 +415,8 @@ if inShort[1] and not inShort
 // ENTRY SIGNALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// CONDIZIONE SHORT PANIC
-shortOK = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
+// CONDIZIONE SHORT PANIC — Supertrend DOWN obbligatorio
+shortOK = isPanicMode and trend_in == -1 and (wtDown or isRsiPanic) and isVolSpike
 
 // Entry
 // FIX 3: barstate.isconfirmed evita entry su tick intrabar non confermati (anti-repainting)
@@ -842,15 +814,12 @@ if showDashboard
     table.cell(dashboard, 1, 0, tfLabel, text_color=color.white, text_size=size.small, bgcolor=hdrBg)
     table.cell(dashboard, 2, 0, statusDot, text_color=statusCol, text_size=size.small, bgcolor=hdrBg)
 
-    // ── FILTRI ──
-    allFiltersOK = volOK and latOK and sessionOK
-    filtersColor = allFiltersOK ? color.lime : color.orange
-    volLabel = volOK ? "Vol OK" : "Vol --"
-    latLabel = latOK ? "Lat OK" : "Lat --"
-    sessLabel = sessionOK ? "Sess OK" : "Sess --"
-    table.cell(dashboard, 0, 1, volLabel, text_color=volOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectBg)
-    table.cell(dashboard, 1, 1, latLabel, text_color=latOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectBg)
-    table.cell(dashboard, 2, 1, sessLabel, text_color=sessionOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectBg)
+    // ── SUPERTREND FILTER ──
+    stFilterText = trend_in == -1 ? "ST DOWN — SHORT OK" : "ST UP — BLOCKED"
+    stFilterColor = trend_in == -1 ? color.lime : color.red
+    table.cell(dashboard, 0, 1, "Filter", text_color=color.gray, text_size=size.tiny, bgcolor=sectBg)
+    table.cell(dashboard, 1, 1, stFilterText, text_color=stFilterColor, text_size=size.small, bgcolor=sectBg)
+    table.cell(dashboard, 2, 1, "", bgcolor=sectBg)
 
     // ── MERCATO ──
     table.cell(dashboard, 0, 2, "MERCATO", text_color=color.new(color.white, 30), text_size=size.tiny, bgcolor=sectBg)
@@ -875,8 +844,8 @@ if showDashboard
 
     // RSI + Volume
     rsiColor = rsi < 30 ? color.green : (rsi > 70 ? color.red : color.white)
-    volText = isVolSpike ? "SPIKE!" : (highVolume ? "HIGH" : "LOW")
-    volColor = isVolSpike ? color.orange : (highVolume ? color.green : color.gray)
+    volText = isVolSpike ? "SPIKE!" : "—"
+    volColor = isVolSpike ? color.orange : color.gray
     table.cell(dashboard, 0, 5, "RSI", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
     table.cell(dashboard, 1, 5, str.tostring(rsi, "#.#"), text_color=rsiColor, text_size=size.small, bgcolor=rowBg)
     table.cell(dashboard, 2, 5, "Vol " + volText, text_color=volColor, text_size=size.small, bgcolor=rowBg)
@@ -955,18 +924,7 @@ if showDashboard
             table.cell(dashboard, 2, 12 + fpOffset, "", bgcolor=rowAlt)
 
     // Base row
-    int r = 8 + fpOffset + rsOffset
-
-    // Session (solo su 4H)
-    if is4H
-        sessText = inActiveSession ? "ACTIVE" : "PAUSED"
-        sessColor = inActiveSession ? color.green : color.orange
-        table.cell(dashboard, 0, r, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, r, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
-
-    int sessOffset = is4H ? 1 : 0
-    int s = r + sessOffset
+    int s = 8 + fpOffset + rsOffset
 
     // ── POSIZIONE ──
     posHdrBg = inShort ? color.new(#b71c1c, 0) : color.new(#1b5e20, 0)
