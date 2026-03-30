@@ -42,12 +42,9 @@ temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndi
 stFactor_in = input.float(2.4, "Supertrend IN Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
 
 grpVisual = "═══ VISUALIZZAZIONE ═══"
-showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
-labelSize = input.string("small", "Dimensione labels", options=["tiny", "small", "normal"], group=grpVisual)
 showDashboard = input.bool(true, "Mostra dashboard", group=grpVisual)
 showBearFilter = input.bool(true, "Mostra TEMA 200 HTF", group=grpVisual)
 showPanicZones = input.bool(false, "Evidenzia zone panic", group=grpVisual)
-labelOffsetATR = input.float(3.0, "Distanza Labels (ATR multiplier)", minval=1.0, maxval=8.0, step=0.5, group=grpVisual, tooltip="Distanza delle label dalle candele in multipli di ATR")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILTRO BEAR MARKET
@@ -347,31 +344,12 @@ plot(useFP and not na(fpPocMid) ? fpPocMid : na, "FP POC", color=color.new(color
 plot(useFP and not na(fpVAH) ? fpVAH : na, "FP VAH", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
 plot(useFP and not na(fpVAL) ? fpVAL : na, "FP VAL", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
 
-// Entry signal
-plotshape(shortSignal, "SHORT ENTRY", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
+// Entry signal — plotshape con testo (si muove col grafico, nessun limite label)
+plotshape(shortSignal, "SHORT ENTRY", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large, text="SHORT", textcolor=color.orange)
 
 // Panic indicators
 plotshape(showPanicZones and isPanicBar, "Panic Bar", shape.circle, location.belowbar, color.new(color.orange, 0), size=size.tiny)
 plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny)
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// LABELS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Calcolo offset per labels
-labelOffset = atr14 * labelOffsetATR
-
-// Dimensione label dinamica
-lblSize = labelSize == "tiny" ? size.tiny : (labelSize == "small" ? size.small : size.normal)
-
-if showLabels and shortSignal
-    entryText = "SHORT PANIC\n" + str.tostring(close, "#.##") + "\nScore: " + str.tostring(panicScore)
-    label.new(bar_index, high + labelOffset,
-         text=entryText,
-         style=label.style_label_down,
-         color=color.orange,
-         textcolor=color.white,
-         size=lblSize)
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
