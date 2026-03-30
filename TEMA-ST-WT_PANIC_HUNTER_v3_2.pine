@@ -45,24 +45,16 @@ structStopATRbuffer = input.float(0.5, "Stop Strutturale ATR Buffer", minval=0.3
 structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, group=grpRisk, tooltip="Numero di barre per il calcolo del massimo recente (stop strutturale)")
 trailStrongBearMult = input.float(1.8, "Trail Multiplier Strong Bear", minval=1.0, maxval=3.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Strong Bear per dare più spazio ai rimbalzi tecnici")
 trailBearMult = input.float(1.3, "Trail Multiplier Bear", minval=1.0, maxval=2.0, step=0.1, group=grpRisk, tooltip="Moltiplica il trailing ATR in Bear Market")
-useDelayedTrail = input.bool(true, "Trailing Attivo Solo Dopo TP1", group=grpRisk, tooltip="Se attivo, il trailing stop si muove solo dopo che TP1 è stato colpito. Prima di TP1 lo stop iniziale (strutturale o %) rimane fisso.")
-useBreakevenAfterTP1 = input.bool(true, "Breakeven Stop Dopo TP1", group=grpRisk, tooltip="Dopo che TP1 viene colpito, lo stop loss si sposta al prezzo di entry (breakeven). Protegge il residuo da inversioni.")
-breakEvenBuffer = input.float(0.05, "Breakeven Buffer %", minval=0.0, maxval=0.5, step=0.01, group=grpRisk, tooltip="Piccolo buffer sotto entry per coprire spread/slippage. 0.05% = ~10 punti su NAS")
+
 strongBearExitBonus = input.float(2.5, "Exit Threshold Bonus Strong Bear", minval=0.0, maxval=4.0, step=0.5, group=grpRisk, tooltip="Aggiunto alla soglia exit in Strong Bear per evitare uscite premature su rimbalzi tecnici")
 rsiExitLevelBear = input.int(65, "RSI Exit Level Strong Bear", minval=55, maxval=75, group=grpRisk, tooltip="RSI minimo per segnale exit in Strong Bear. Più alto = lascia correre più a lungo")
 emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65, maxval=80, group=grpRisk, tooltip="RSI per emergency exit in Strong Bear. Più alto = protezione solo su rimbalzi veramente forti")
 
-grpTP = "═══ TAKE PROFIT SCALATO ═══"
-usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
-useDynamicTP = input.bool(true, "TP Dinamici (basati su ATR)", group=grpTP, tooltip="I TP si adattano alla volatilità corrente. I valori % diventano fallback")
-tp1_perc_input = input.float(0.3, "TP1 %", minval=0.1, maxval=5.0, step=0.1, group=grpTP, tooltip="TP1 % — soglia bassa per catturare l'88% dei trade") / 100
-tp1_size = input.float(40, "TP1 Size %", minval=10, maxval=60, step=5, group=grpTP, tooltip="TP1 chiude il 40%, il 60% corre verso TP2") / 100
-tp2_perc_input = input.float(1.2, "TP2 %", minval=0.5, maxval=10.0, step=0.1, group=grpTP, tooltip="TP2 % — chiude tutta la posizione rimanente") / 100
-tp2_size = input.float(60, "TP2 Size %", minval=10, maxval=60, step=5, group=grpTP, tooltip="TP2 chiude il 60% restante — tutta la posizione") / 100
-tpATRmult1 = input.float(0.5, "TP1 ATR Multiplier", minval=0.1, maxval=4.0, step=0.1, group=grpTP, tooltip="TP1 ATR Multiplier — ~60-70 punti su NAS")
-tpATRmult2 = input.float(1.8, "TP2 ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP2 ATR Multiplier — ~240 punti su NAS")
-useTP1ReboundClose = input.bool(true, "Chiudi su Rimbalzo a TP1", group=grpTP, tooltip="Dopo che TP1 viene colpito, se il prezzo rimbalza e ritocca il livello TP1 chiude tutta la posizione rimanente. Il TP1 diventa una resistenza di uscita.")
-useRegimeTP = input.bool(true, "TP Adattivi al Regime", group=grpTP, tooltip="Scala i TP dinamici in base al regime di mercato e alla densità volumetrica")
+grpTP = "═══ TAKE PROFIT ═══"
+useDynamicTP = input.bool(true, "TP Dinamico (basato su ATR)", group=grpTP, tooltip="Il TP si adatta alla volatilità corrente. Il valore % diventa fallback")
+tp1_perc_input = input.float(1.5, "TP %", minval=0.1, maxval=10.0, step=0.1, group=grpTP, tooltip="Take Profit % — fallback se TP dinamico è off") / 100
+tpATRmult = input.float(1.5, "TP ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP = entry - ATR * questo valore. Es: ATR 150pt * 1.5 = 225pt")
+useRegimeTP = input.bool(true, "TP Adattivo al Regime", group=grpTP, tooltip="Scala il TP in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
 regimeTPmult_bear = input.float(1.2, "TP Multiplier Bear", minval=1.0, maxval=2.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Bear Market")
@@ -400,16 +392,8 @@ wtBullish = wt1_out > wt2_out
 var float entryPrice = na
 var float trailStop = na
 var float lowestSinceEntry = na
-var bool tp1_hit = false
-var bool tp2_hit = false
-var string entryMode = ""
 
 inShort = strategy.position_size < 0
-
-// Reset TP flags quando la posizione si chiude effettivamente
-if inShort[1] and not inShort
-    tp1_hit := false
-    tp2_hit := false
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SIGNALS
@@ -441,55 +425,35 @@ if inShort and not inShort[1]
     else
         trailStop := entryPrice * (1 + (isPanicMode ? adaptedStopPanic : adaptedStopNormal))
     lowestSinceEntry := close
-    tp1_hit := false
-    tp2_hit := false
-    entryMode := isPanicMode ? "PANIC" : "STANDARD"
 
 // Update trailing stop
 // Moltiplicatore regime per trailing ATR: più spazio in bear strutturale
 trailRegimeMult = isStrongBear ? trailStrongBearMult : (isBearMarket ? trailBearMult : 1.0)
 effectiveTrailATR = adaptedTrailATR * trailRegimeMult
 
-// Trailing attivo solo dopo TP1 se useDelayedTrail è abilitato
-trailActive = useDelayedTrail ? tp1_hit : true
-
 if inShort
     lowestSinceEntry := math.min(lowestSinceEntry, low)
 
-    if useTrailingStop and trailActive
-        // Trailing stop basato su ATR dal minimo, con regime multiplier
+    if useTrailingStop
         newTrailStop = lowestSinceEntry + atr14 * effectiveTrailATR
-
-        // Il trailing stop può solo scendere (per short), con guard per na
         if na(trailStop) or newTrailStop < trailStop
             trailStop := newTrailStop
 
-    // BREAKEVEN: dopo TP1, lo stop non sale sopra entry price (con buffer)
-    if useBreakevenAfterTP1 and tp1_hit
-        breakEvenPrice = entryPrice * (1 + breakEvenBuffer / 100)
-        if na(trailStop) or trailStop > breakEvenPrice
-            trailStop := breakEvenPrice
-
 // Calcolo livelli
 activeStopPerc = isPanicMode ? adaptedStopPanic : adaptedStopNormal
-// Fallback senza trailing: in Strong Bear usa strutturale, altrimenti % fisso
 stopPriceFallback = useStructStop ? stopStrutturale : entryPrice * (1 + activeStopPerc)
 stopPrice = useTrailingStop ? trailStop : stopPriceFallback
 
-// TP dinamici: basati su ATR e regimeMult al momento dell'entry, o % fisse come fallback
+// TP dinamico: basato su ATR e regimeMult al momento dell'entry, o % fissa come fallback
 var float entryATR = na
 var float entryRegimeMult = na
 if inShort and not inShort[1]
     entryATR := atr14
     entryRegimeMult := regimeMult
 
-// Calcola TP percentuali: usa ATR * entryRegimeMult (fisso all'entry) se abilitato, altrimenti % fissa
-// na() guard su entryATR, entryPrice e entryRegimeMult per evitare errori al primo trade
-tp1_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult1 * entryRegimeMult) / entryPrice : tp1_perc_input
-tp2_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult2 * entryRegimeMult) / entryPrice : tp2_perc_input
+tp_perc = useDynamicTP and not na(entryATR) and entryATR > 0 and not na(entryPrice) and entryPrice > 0 and not na(entryRegimeMult) ? (entryATR * tpATRmult * entryRegimeMult) / entryPrice : tp1_perc_input
 
-tp1Price = entryPrice * (1 - tp1_perc)
-tp2Price = entryPrice * (1 - tp2_perc)
+tpPrice = entryPrice * (1 - tp_perc)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXIT CONDITIONS (VELOCIZZATE)
@@ -513,14 +477,12 @@ wt_exit_wt   = 1.5   // WT bullish = più rumoroso, peso minore
 wt_exit_fp = fpExitEnabled and useFP ? fpExitWeight : 0.0
 exit_fp = fpExitEnabled and useFP and not na(fpDelta) and fpDeltaDivExit and fpExitWarningCount >= 2
 
-// Profit già realizzato
+// Profit corrente
 currentProfit = inShort ? (entryPrice - close) / entryPrice : 0
-hasProfit = currentProfit > tp1_perc
 
 // EXIT PONDERATO: soglia adattiva al regime (v3.2: + footprint)
 exitScore = (exit_wt ? wt_exit_wt : 0) + (exit_st ? wt_exit_st : 0) + (exit_tema ? wt_exit_tema : 0) + (exit_rsi ? wt_exit_rsi : 0) + (exit_fp ? wt_exit_fp : 0)
-// MODIFICA 1: soglia base + bonus in Strong Bear per evitare cover premature
-exitThresholdBase = hasProfit ? 4.0 : 6.0
+exitThresholdBase = currentProfit > 0 ? 4.0 : 6.0
 exitThreshold = isStrongBear ? exitThresholdBase + strongBearExitBonus : exitThresholdBase
 shouldExit = exitScore >= exitThreshold
 
@@ -549,51 +511,14 @@ float regimeShiftScore = math.max(0, math.min(100, rssSTup + rssPanicDown + rssF
 // EXECUTE EXITS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Determina se bisogna chiudere tutto (calcolato PRIMA di piazzare ordini)
-bool shouldCloseAll = false
-string closeReason = ""
-
 if inShort
-    // Signal-based exit - calcolato prima
+    // Signal-based exit (cover/emergency) — priorità su TP/SL
     if exit_bar
-        if emergencyExit
-            shouldCloseAll := true
-            closeReason := "EMERGENCY"
-        else if not usePartialTP or tp1_hit
-            shouldCloseAll := true
-            closeReason := "Cover"
-
-    // Take Profit Parziali
-    if usePartialTP and not shouldCloseAll
-        // TP1 — chiusura parziale 40%
-        if not tp1_hit and close <= tp1Price
-            strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
-            tp1_hit := true
-
-        // TP1 Rebound Close — tp1_hit[1] evita conflitto sulla stessa barra del TP1
-        if useTP1ReboundClose and tp1_hit[1] and not tp2_hit and close >= tp1Price
-            shouldCloseAll := true
-            closeReason := "TP1 Rebound"
-
-        // TP2 - chiude tutta la posizione rimanente
-        if not tp2_hit and tp1_hit[1] and close <= tp2Price
-            shouldCloseAll := true
-            closeReason := "TP2"
-
-    // CHIUSURA TOTALE: un unico punto di uscita, nessun conflitto
-    if shouldCloseAll
         strategy.cancel_all()
-        strategy.close("Short", comment=closeReason)
-        tp2_hit := true
-    else if usePartialTP and not tp2_hit
-        // SL attivo SOLO se non stiamo chiudendo
-        strategy.exit("SL", from_entry="Short", stop=stopPrice)
-    else if not usePartialTP
-        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
-    else if tp2_hit
-        // Failsafe: tp2_hit true ma ancora in posizione
-        strategy.cancel_all()
-        strategy.close("Short", comment="Force Close")
+        strategy.close("Short", comment=emergencyExit ? "EMERGENCY" : "Cover")
+    else
+        // TP + SL via ordini limit/stop reali — eseguono al prezzo esatto, anche intrabar
+        strategy.exit("TP/SL", from_entry="Short", stop=stopPrice, limit=tpPrice)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLOTS
@@ -617,8 +542,7 @@ bgcolor(inShort ? color.new(color.red, 92) : na, title="In Position")
 
 // SL/TP levels
 plot(showLevels and inShort ? stopPrice : na, "Stop Loss", color=color.new(color.red, 0), linewidth=2, style=plot.style_cross)
-plot(showLevels and inShort ? tp1Price : na, "TP1", color=color.new(color.lime, 60), linewidth=1, style=plot.style_circles)
-plot(showLevels and inShort ? tp2Price : na, "TP2", color=color.new(color.lime, 40), linewidth=1, style=plot.style_circles)
+plot(showLevels and inShort ? tpPrice : na, "TP", color=color.new(color.lime, 40), linewidth=1, style=plot.style_circles)
 plot(showLevels and inShort ? entryPrice : na, "Entry", color=color.new(color.white, 0), linewidth=1, style=plot.style_circles)
 
 // Footprint POC (solo se abilitato)
@@ -658,7 +582,7 @@ if showLabels
              "SHORT " + modeText + "\n" + str.tostring(close, "#.##") :
              "SHORT " + modeText + "\nEntry: " + str.tostring(close, "#.##") +
                   "\nSL: " + str.tostring(stopPrice, "#.##") +
-                  "\nTP2: " + str.tostring(tp2Price, "#.##")
+                  "\nTP: " + str.tostring(tpPrice, "#.##")
 
         label.new(bar_index, high + labelOffset,
              text=entryText,
@@ -687,59 +611,29 @@ if showLabels
              size=lblSize)
 
 // TP hit labels - solo se non compatte
-if showLabels and not compactLabels and inShort
-    if tp1_hit and not tp1_hit[1]
-        label.new(bar_index, low - labelOffset * 0.5,
-             text="TP1",
-             style=label.style_label_up,
-             color=color.new(color.green, 30),
-             textcolor=color.white,
-             size=size.tiny)
-    if tp2_hit and not tp2_hit[1]
-        label.new(bar_index, low - labelOffset * 0.5,
-             text="TP2",
-             style=label.style_label_up,
-             color=color.new(color.green, 20),
-             textcolor=color.white,
-             size=size.tiny)
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// LINEE ORIZZONTALI TP1 / TP2 / ENTRY / STOP
+// LINEE ORIZZONTALI TP / ENTRY / STOP
 // ═══════════════════════════════════════════════════════════════════════════════
 
-var line lineTP1   = na
-var line lineTP2   = na
+var line lineTP    = na
 var line lineEntry = na
 var line lineStop  = na
-var label lblTP1   = na
-var label lblTP2   = na
+var label lblTP    = na
 var label lblEntry = na
 var label lblStop  = na
 
 if inShort
-    // — TP1 —
-    if na(lineTP1)
-        lineTP1 := line.new(bar_index, tp1Price, bar_index + 1, tp1Price, color=color.new(color.lime, 0), style=line.style_dashed, width=2, extend=extend.right)
+    // — TP —
+    if na(lineTP)
+        lineTP := line.new(bar_index, tpPrice, bar_index + 1, tpPrice, color=color.new(color.lime, 0), style=line.style_dashed, width=2, extend=extend.right)
     else
-        line.set_xy1(lineTP1, bar_index, tp1Price)
-        line.set_xy2(lineTP1, bar_index + 1, tp1Price)
-    if na(lblTP1)
-        lblTP1 := label.new(bar_index, tp1Price, text="TP1 " + str.tostring(tp1Price, "#.#"), style=label.style_label_left, color=color.new(#2E7D32, 0), textcolor=color.white, size=size.small)
+        line.set_xy1(lineTP, bar_index, tpPrice)
+        line.set_xy2(lineTP, bar_index + 1, tpPrice)
+    if na(lblTP)
+        lblTP := label.new(bar_index, tpPrice, text="TP " + str.tostring(tpPrice, "#.#"), style=label.style_label_left, color=color.new(#2E7D32, 0), textcolor=color.white, size=size.small)
     else
-        label.set_xy(lblTP1, bar_index, tp1Price)
-        label.set_text(lblTP1, "TP1 " + str.tostring(tp1Price, "#.#"))
-
-    // — TP2 —
-    if na(lineTP2)
-        lineTP2 := line.new(bar_index, tp2Price, bar_index + 1, tp2Price, color=color.new(color.green, 0), style=line.style_solid, width=2, extend=extend.right)
-    else
-        line.set_xy1(lineTP2, bar_index, tp2Price)
-        line.set_xy2(lineTP2, bar_index + 1, tp2Price)
-    if na(lblTP2)
-        lblTP2 := label.new(bar_index, tp2Price, text="TP2 " + str.tostring(tp2Price, "#.#"), style=label.style_label_left, color=color.new(#1B5E20, 0), textcolor=color.white, size=size.small)
-    else
-        label.set_xy(lblTP2, bar_index, tp2Price)
-        label.set_text(lblTP2, "TP2 " + str.tostring(tp2Price, "#.#"))
+        label.set_xy(lblTP, bar_index, tpPrice)
+        label.set_text(lblTP, "TP " + str.tostring(tpPrice, "#.#"))
 
     // — ENTRY —
     if na(lineEntry)
@@ -767,24 +661,18 @@ if inShort
 
 else
     // Posizione chiusa → cancella tutto
-    if not na(lineTP1)
-        line.delete(lineTP1)
-        lineTP1 := na
-    if not na(lineTP2)
-        line.delete(lineTP2)
-        lineTP2 := na
+    if not na(lineTP)
+        line.delete(lineTP)
+        lineTP := na
     if not na(lineEntry)
         line.delete(lineEntry)
         lineEntry := na
     if not na(lineStop)
         line.delete(lineStop)
         lineStop := na
-    if not na(lblTP1)
-        label.delete(lblTP1)
-        lblTP1 := na
-    if not na(lblTP2)
-        label.delete(lblTP2)
-        lblTP2 := na
+    if not na(lblTP)
+        label.delete(lblTP)
+        lblTP := na
     if not na(lblEntry)
         label.delete(lblEntry)
         lblEntry := na
@@ -939,25 +827,22 @@ if showDashboard
     if inShort
         // Entry + P&L
         pnlColor = currentProfit > 0 ? color.green : color.red
-        pnlBg = currentProfit > tp1_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
+        pnlBg = currentProfit > tp_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
         table.cell(dashboard, 0, s + 1, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
         table.cell(dashboard, 1, s + 1, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
         table.cell(dashboard, 2, s + 1, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
 
         // Stop + Trail
-        tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
-        tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
         slTypeText = useStructStop ? "STRUCT" : "STD"
-        beActiveText = useBreakevenAfterTP1 and tp1_hit ? " BE" : ""
-        trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" + beActiveText : "WAIT " + slTypeText)
-        trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
+        trailStatusText = not useTrailingStop ? "NO TRAIL" : "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x"
+        trailStatusColor = not useTrailingStop ? color.gray : color.lime
         table.cell(dashboard, 0, s + 2, "Stop", text_color=color.gray, text_size=size.tiny, bgcolor=rowAlt)
         table.cell(dashboard, 1, s + 2, str.tostring(stopPrice, "#.#") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowAlt)
-        table.cell(dashboard, 2, s + 2, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowAlt)
+        table.cell(dashboard, 2, s + 2, slTypeText, text_color=useStructStop ? color.orange : color.white, text_size=size.small, bgcolor=rowAlt)
 
         // TP Levels
         table.cell(dashboard, 0, s + 3, "TP1/TP2", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, s + 3, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 20), text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 1, s + 3, str.tostring(tpPrice, "#.#"), text_color=color.new(color.lime, 20), text_size=size.small, bgcolor=rowBg)
         // Regime mult
         activeRegimeMult = not na(entryRegimeMult) ? entryRegimeMult : regimeMult
         regimeMultText = str.tostring(activeRegimeMult, "#.#") + "x"
@@ -1008,5 +893,3 @@ alertcondition(useFP and fpDeltaDivShort and not fpDeltaDivShort[1], title="FP D
 alertcondition(useFP and inShort and fpDeltaDivExit and fpExitWarningCount >= 2, title="FP Exit Warning", message="FOOTPRINT: Exit warning — Delta divergence con multipli segnali bullish")
 alertcondition(useFP and fpAbsorption and not fpAbsorption[1], title="FP Absorption", message="FOOTPRINT: Absorption pattern su {{ticker}} — Buyer intrappolati, delta positivo con candela rossa")
 
-// Breakeven alert (v3.4)
-alertcondition(useBreakevenAfterTP1 and tp1_hit and not tp1_hit[1], title="Breakeven Activated", message="BREAKEVEN attivato su {{ticker}} — Stop spostato a entry price dopo TP1")
