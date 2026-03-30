@@ -6,8 +6,9 @@
 //               v3.2: integrazione volume footprint (delta, POC, imbalances)
 //               v3.3: Rimosso TP3 — sistema a 2 TP per eliminare residuo stoppato
 //               v3.4: TP ottimizzati (TP1 0.3%/40%, TP2 1.2%/60%) + Breakeven dopo TP1
+//               v3.5: TP1 Rebound Close — chiude posizione se prezzo rimbalza al livello TP1
 //               Fix: TF operativo ora automatico da grafico (rimosso input manuale)
-// @version      3.4
+// @version      3.5
 // @author       Ottimizzato per velocità e profitto
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ tp2_perc_input = input.float(1.2, "TP2 %", minval=0.5, maxval=10.0, step=0.1, gr
 tp2_size = input.float(60, "TP2 Size %", minval=10, maxval=60, step=5, group=grpTP, tooltip="TP2 chiude il 60% restante — tutta la posizione") / 100
 tpATRmult1 = input.float(0.5, "TP1 ATR Multiplier", minval=0.1, maxval=4.0, step=0.1, group=grpTP, tooltip="TP1 ATR Multiplier — ~60-70 punti su NAS")
 tpATRmult2 = input.float(1.8, "TP2 ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP2 ATR Multiplier — ~240 punti su NAS")
+useTP1ReboundClose = input.bool(true, "Chiudi su Rimbalzo a TP1", group=grpTP, tooltip="Dopo che TP1 viene colpito, se il prezzo rimbalza e ritocca il livello TP1 chiude tutta la posizione rimanente. Il TP1 diventa una resistenza di uscita.")
 useRegimeTP = input.bool(true, "TP Adattivi al Regime", group=grpTP, tooltip="Scala i TP dinamici in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
@@ -723,6 +725,11 @@ if inShort
         if not tp1_hit and close_tf <= tp1Price
             strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
             tp1_hit := true
+
+        // TP1 Rebound Close — se dopo TP1 il prezzo rimbalza e ritocca il livello TP1, chiudi tutto
+        if useTP1ReboundClose and tp1_hit and not tp2_hit and close_tf >= tp1Price
+            strategy.close("Short", comment="TP1 Rebound")
+            tp2_hit := true
 
         // TP2 - chiude tutta la posizione rimanente
         if not tp2_hit and tp1_hit and close_tf <= tp2Price
