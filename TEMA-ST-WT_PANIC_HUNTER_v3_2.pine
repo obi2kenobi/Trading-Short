@@ -40,8 +40,6 @@ stopPerc_normal = input.float(2.0, "Stop Loss Normale %", minval=0.5, maxval=5.0
 stopPerc_panic = input.float(1.2, "Stop Loss Panic Mode %", minval=0.3, maxval=3.0, step=0.1, group=grpRisk) / 100
 useTrailingStop = input.bool(true, "Usa Trailing Stop", group=grpRisk)
 trailATRmult = input.float(1.0, "Trailing Stop ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpRisk)
-trailTightATRmult = input.float(0.5, "Trail Stretto ATR (dopo profitto)", minval=0.2, maxval=2.0, step=0.1, group=grpRisk, tooltip="Trailing più stretto quando il trade è in profitto oltre la soglia. Protegge i guadagni.")
-trailTightThreshold = input.float(0.5, "Soglia Profitto per Trail Stretto %", minval=0.2, maxval=2.0, step=0.1, group=grpRisk, tooltip="Quando il profitto non realizzato supera questa %, il trailing si stringe") / 100
 useStructuralStop = input.bool(true, "Stop Strutturale in Strong Bear", group=grpRisk, tooltip="In Strong Bear usa il massimo recente + buffer ATR invece dello stop % fisso")
 structStopATRbuffer = input.float(0.5, "Stop Strutturale ATR Buffer", minval=0.3, maxval=2.0, step=0.1, group=grpRisk, tooltip="Buffer ATR sopra il massimo recente per lo stop strutturale")
 structStopLookback = input.int(3, "Lookback Massimi Stop", minval=2, maxval=8, group=grpRisk, tooltip="Numero di barre per il calcolo del massimo recente (stop strutturale)")
@@ -437,12 +435,7 @@ if inShort
     lowestSinceEntry := math.min(lowestSinceEntry, low)
 
     if useTrailingStop
-        // Profitto non realizzato (per short: entry - current / entry)
-        unrealizedProfit = (entryPrice - close) / entryPrice
-        // Trail stretto quando il profitto supera la soglia
-        isInProfit = unrealizedProfit > trailTightThreshold
-        activeTrailATR = isInProfit ? (trailTightATRmult * trailRegimeMult) : effectiveTrailATR
-        newTrailStop = lowestSinceEntry + atr14 * activeTrailATR
+        newTrailStop = lowestSinceEntry + atr14 * effectiveTrailATR
         if na(trailStop) or newTrailStop < trailStop
             trailStop := newTrailStop
 
@@ -841,10 +834,7 @@ if showDashboard
 
         // Stop + Trail
         slTypeText = useStructStop ? "STRUCT" : "STD"
-        unrealizedProfitDash = (entryPrice - close) / entryPrice
-        isTightTrail = unrealizedProfitDash > trailTightThreshold
-        activeTrailDash = isTightTrail ? (trailTightATRmult * trailRegimeMult) : effectiveTrailATR
-        trailStatusText = not useTrailingStop ? "NO TRAIL" : (isTightTrail ? "TIGHT " : "TRAIL ") + str.tostring(activeTrailDash, "#.#") + "x"
+        trailStatusText = not useTrailingStop ? "NO TRAIL" : "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x"
         trailStatusColor = not useTrailingStop ? color.gray : color.lime
         table.cell(dashboard, 0, s + 2, "Stop", text_color=color.gray, text_size=size.tiny, bgcolor=rowAlt)
         table.cell(dashboard, 1, s + 2, str.tostring(stopPrice, "#.#") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowAlt)
