@@ -1,0 +1,537 @@
+//@version=6
+// ──────────────────────────────────────────────────────────────────────────────
+// @title        PANIC HUNTER — ENTRY SIGNALS ONLY
+// @description  Solo segnali di entrata SHORT. Uscita manuale.
+// @version      4.0
+// ──────────────────────────────────────────────────────────────────────────────
+
+// — TIMEFRAME —
+tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"])
+
+// — DATI HTF —
+close_htf = request.security(syminfo.tickerid, tf_filter, close)
+atr14 = ta.atr(14)
+atr10 = ta.atr(10)
+
+indicator("PANIC HUNTER — SIGNALS", overlay=true, max_labels_count=500)
+
+grpPanic = "═══ PANIC DETECTION ═══"
+volSpikeMultiplier = input.float(2.0, "Volume Spike Multiplier", minval=1.5, maxval=4.0, step=0.1, group=grpPanic)
+panicBarATRmult = input.float(1.5, "Panic Bar Size (ATR mult)", minval=1.0, maxval=3.0, step=0.1, group=grpPanic)
+rsiPanicLevel = input.int(35, "RSI Panic Threshold", minval=20, maxval=45, group=grpPanic)
+usePanicMode = input.bool(true, "Abilita Panic Mode Aggressivo", group=grpPanic)
+useSogliaRidottaBear = input.bool(true, "Soglia Ridotta in Strong Bear", group=grpPanic, tooltip="Abbassa soglia panicMode da 40 a 25 quando isStrongBear è attivo")
+useBonusBreakout = input.bool(true, "Bonus Breakout Strutturale", group=grpPanic, tooltip="Aggiunge 15 punti al panicScore quando il prezzo è sotto la regressione lineare di lungo periodo in Strong Bear")
+
+grpRegimeShift = "═══ REGIME SHIFT MONITOR ═══"
+useRegimeShiftMonitor = input.bool(true, "Abilita Regime Shift Score", group=grpRegimeShift, tooltip="Calcola un punteggio 0-100 che misura quanto il regime SHORT sta perdendo forza. Solo indicativo, non modifica la logica operativa.")
+showShiftDetail = input.bool(false, "Mostra dettaglio contributi", group=grpRegimeShift, tooltip="Se attivo, mostra nel dashboard ogni componente del punteggio Regime Shift")
+
+
+grpFP = "═══ FOOTPRINT ORDER FLOW ═══"
+useFP = input.bool(true, "Enable Footprint Data", group=grpFP, tooltip="Richiede piano Premium/Ultimate. Se disabilitato, il sistema funziona esattamente come v3.1")
+fpTicksPerRow = input.int(30, "Ticks per row", minval=1, maxval=200, group=grpFP, tooltip="NQ: 20-50 | RTY: 20-40. Granularità righe di prezzo")
+fpVAPercent = input.int(70, "Value Area %", minval=50, maxval=90, group=grpFP)
+fpImbalancePercent = input.int(300, "Imbalance threshold %", minval=100, maxval=500, group=grpFP, tooltip="300 = 3:1 ratio buy/sell. 400 = più selettivo")
+fpDeltaDivBars = input.int(3, "Delta divergence lookback", minval=2, maxval=10, group=grpFP)
+fpPanicBoostEnabled = input.bool(false, "Enable Panic Score Boost", group=grpFP, tooltip="FASE 2: Aggiunge punti al Panic Score quando il delta conferma selling aggressivo. Attivare solo dopo periodo di osservazione")
+fpPanicBoostPoints = input.int(10, "Panic Score Boost Points", minval=5, maxval=20, group=grpFP, tooltip="Punti aggiunti al Panic Score quando delta è estremo negativo + sell imbalances")
+
+grpIndicators = "═══ INDICATORI ═══"
+temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndicators)
+stFactor_in = input.float(2.4, "Supertrend IN Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
+
+grpVisual = "═══ VISUALIZZAZIONE ═══"
+showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
+labelSize = input.string("small", "Dimensione labels", options=["tiny", "small", "normal"], group=grpVisual)
+showDashboard = input.bool(true, "Mostra dashboard", group=grpVisual)
+showBearFilter = input.bool(true, "Mostra TEMA 200 HTF", group=grpVisual)
+showPanicZones = input.bool(false, "Evidenzia zone panic", group=grpVisual)
+labelOffsetATR = input.float(3.0, "Distanza Labels (ATR multiplier)", minval=1.0, maxval=8.0, step=0.5, group=grpVisual, tooltip="Distanza delle label dalle candele in multipli di ATR")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FILTRO BEAR MARKET
+// ═══════════════════════════════════════════════════════════════════════════════
+
+tema200_htf = request.security(syminfo.tickerid, tf_filter, 3*ta.ema(close, 200) - 3*ta.ema(ta.ema(close, 200), 200) + ta.ema(ta.ema(ta.ema(close, 200), 200), 200))
+ema50_htf = request.security(syminfo.tickerid, tf_filter, ta.ema(close, 50))
+
+// Bear market confermato: prezzo sotto TEMA200 E EMA50 sotto TEMA200
+isBearMarket = close_htf < tema200_htf
+isStrongBear = isBearMarket and ema50_htf < tema200_htf
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARAMETRI ADATTIVI PER TIMEFRAME
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Timeframe detection
+is15m = timeframe.period == "15"
+is30m = timeframe.period == "30"
+is45m = timeframe.period == "45"
+isSubHourly = is15m or is30m or is45m
+is4H = timeframe.period == "240"
+isDaily = timeframe.period == "D" or timeframe.period == "1D"
+
+// Moltiplicatore adattivo per TF
+tfPanicMult = isDaily ? 1.5 : (is4H ? 1.0 : (isSubHourly ? 0.8 : 1.2))
+adaptedPanicBarATR = panicBarATRmult * tfPanicMult
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARAMETRI INTERNI
+// ═══════════════════════════════════════════════════════════════════════════════
+
+wtN1      = 10
+// FIX 2: WT IN e OUT usavano lo stesso N2 → serie identiche. Ora differenziati:
+//   IN  (entry): N2 più lungo = segnale più lento, meno falsi positivi in entrata
+//   OUT (exit):  N2 più corto = segnale più rapido, uscita tempestiva
+wtN2_in   = 21
+rsiLen    = 14
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME FOOTPRINT DATA (richiede Premium/Ultimate)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// UNA SOLA chiamata request.footprint() — estrarre TUTTO qui
+footprint fp = useFP ? request.footprint(fpTicksPerRow, fpVAPercent, fpImbalancePercent) : na
+
+// --- Metriche aggregate della barra ---
+float fpDelta     = not na(fp) ? fp.delta() : na
+float fpBuyVol    = not na(fp) ? fp.buy_volume() : na
+float fpSellVol   = not na(fp) ? fp.sell_volume() : na
+float fpTotalVol  = not na(fp) ? fp.total_volume() : na
+
+// --- POC (Point of Control) ---
+float fpPocHigh   = not na(fp) and not na(fp.poc()) ? fp.poc().up_price() : na
+float fpPocLow    = not na(fp) and not na(fp.poc()) ? fp.poc().down_price() : na
+float fpPocMid    = not na(fpPocHigh) and not na(fpPocLow) ? (fpPocHigh + fpPocLow) / 2.0 : na
+
+// --- VAH / VAL ---
+float fpVAH       = not na(fp) and not na(fp.vah()) ? fp.vah().up_price() : na
+float fpVAL       = not na(fp) and not na(fp.val()) ? fp.val().down_price() : na
+
+// --- Delta normalizzato ---
+float fpAbsDelta    = not na(fpDelta) ? math.abs(fpDelta) : na
+float fpAvgAbsDelta = ta.sma(nz(fpAbsDelta), 20)
+float fpDeltaRatio  = fpAvgAbsDelta > 0 and not na(fpDelta) ? fpDelta / fpAvgAbsDelta : 0.0
+
+// --- Buy/Sell Ratio ---
+float fpBuySellRatio = not na(fpSellVol) and fpSellVol > 0 ? nz(fpBuyVol) / fpSellVol : na
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FOOTPRINT SIGNALS — ENTRY CONFIRMATION (SHORT)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 1. EXTREME NEGATIVE DELTA: vendita aggressiva molto sopra la media
+bool fpExtremeSell = not na(fpDelta) and fpDelta < 0 and fpAvgAbsDelta > 0 and math.abs(fpDelta) > fpAvgAbsDelta * 1.5
+
+// 2. ABSORPTION: delta positivo ma candela bearish = compratori intrappolati
+bool fpAbsorption = not na(fpDelta) and nz(fpDelta) > 0 and close < open
+
+// 3. SELL PRESSURE ACCELERATION: delta sempre più negativo su barre consecutive
+bool fpSellAccelerating = not na(fpDelta) and not na(fpDelta[1]) and fpDelta < 0 and fpDelta[1] < 0 and fpDelta < fpDelta[1]
+
+// 4. POC MIGRATION DOWN: il punto di maggior volume scende
+float fpPocSlope = not na(fpPocMid) and not na(fpPocMid[3]) ? (fpPocMid - fpPocMid[3]) / 3.0 : na
+bool fpPocFalling = not na(fpPocSlope) and fpPocSlope < 0
+
+// 5. DELTA DIVERGENCE SHORT: prezzo fa higher high ma delta è inferiore
+bool fpDeltaDivShort = not na(fpDelta) and high > ta.highest(high[1], fpDeltaDivBars) and nz(fpDelta) < ta.highest(nz(fpDelta[1]), fpDeltaDivBars)
+
+// Conteggio conferme SHORT footprint
+int fpShortConfirmCount = (fpExtremeSell ? 1 : 0) + (fpAbsorption ? 1 : 0) + (fpSellAccelerating ? 1 : 0) + (fpPocFalling ? 1 : 0) + (fpDeltaDivShort ? 1 : 0)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FOOTPRINT SIGNALS — EXIT WARNING (rimbalzo reale vs tecnico)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 1. DELTA DIVERGENCE EXIT: prezzo continua a scendere ma delta sale
+bool fpDeltaDivExit = not na(fpDelta) and low < ta.lowest(low[1], fpDeltaDivBars) and nz(fpDelta) > ta.lowest(nz(fpDelta[1]), fpDeltaDivBars)
+
+// 2. BULLISH ABSORPTION: delta negativo ma candela verde
+bool fpBullAbsorption = not na(fpDelta) and nz(fpDelta) < 0 and close > open
+
+// 3. EXTREME BUY PRESSURE: delta molto positivo improvviso
+bool fpExtremeBuy = not na(fpDelta) and fpDelta > 0 and fpAvgAbsDelta > 0 and fpDelta > fpAvgAbsDelta * 1.5
+
+// 4. POC MIGRATION UP: il volume sta accettando prezzi più alti
+bool fpPocRising = not na(fpPocSlope) and fpPocSlope > 0
+
+// Conteggio segnali exit footprint
+int fpExitWarningCount = (fpDeltaDivExit ? 1 : 0) + (fpBullAbsorption ? 1 : 0) + (fpExtremeBuy ? 1 : 0) + (fpPocRising ? 1 : 0)
+
+// CVD approssimato (Cumulative Volume Delta)
+var float fpCVD = 0.0
+fpCVD := not na(fpDelta) ? fpCVD + fpDelta : fpCVD
+float fpCVD_sma5 = ta.sma(fpCVD, 5)
+bool fpCVDrising = fpCVD > fpCVD_sma5
+bool fpCVDfalling = fpCVD < fpCVD_sma5
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PANIC DETECTION MODULE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 1. VOLUME SPIKE DETECTION
+volMA20 = ta.sma(volume, 20)
+
+isVolSpike = volume > volMA20 * volSpikeMultiplier
+
+// 2. PANIC BAR DETECTION (candele di panico)
+candleBody = math.abs(close - open)
+candleRange = high - low
+isBearishCandle = close < open
+isPanicBar = isBearishCandle and candleBody > atr14 * adaptedPanicBarATR and candleBody > candleRange * 0.7
+
+// 3. RSI CRASH DETECTION
+rsi = ta.rsi(close, rsiLen)
+rsi_prev = rsi[1]  // usa il valore RSI della barra precedente, non ricalcolare
+isRsiPanic = rsi < rsiPanicLevel
+isRsiCrashing = rsi < rsi_prev - 5 and rsi < 50  // RSI in caduta rapida
+
+// 4. PRICE VELOCITY (accelerazione discesa)
+priceChange1 = (close - close[1]) / close[1] * 100
+priceChange3 = (close - close[3]) / close[3] * 100
+isPriceAccelerating = priceChange1 < -0.5 and priceChange3 < -1.5
+
+// 5. GAP DOWN DETECTION
+gapDown = open < low[1]
+significantGap = gapDown and (low[1] - open) > atr14 * 0.5
+
+// 6. CONSECUTIVE RED BARS
+redBar = close < open
+consecutiveRed = redBar and redBar[1] and redBar[2]
+
+// 7. STRUCTURAL BREAKOUT: prezzo sotto regressione lineare di lungo periodo
+linregValue = ta.linreg(close, 100, 0)
+isBelowLinreg = close < linregValue
+isStructuralBreakout = isBelowLinreg and isStrongBear
+
+// PANIC SCORE (0-100)
+panicScore = 0
+panicScore := panicScore + (isVolSpike ? 20 : 0)
+panicScore := panicScore + (isPanicBar ? 25 : 0)
+panicScore := panicScore + (isRsiPanic ? 15 : 0)
+panicScore := panicScore + (isRsiCrashing ? 10 : 0)
+panicScore := panicScore + (isPriceAccelerating ? 15 : 0)
+panicScore := panicScore + (significantGap ? 10 : 0)
+panicScore := panicScore + (consecutiveRed ? 5 : 0)
+// MODIFICA 3: Bonus strutturale quando sotto regressione lineare in Strong Bear
+panicScore := panicScore + (useBonusBreakout and isStructuralBreakout ? 15 : 0)
+
+// MODIFICA v3.2: Bonus Footprint al Panic Score (solo se abilitato)
+// Extreme selling + sell acceleration confermano panico reale nell'order flow
+fpPanicBonus = 0
+if fpPanicBoostEnabled and useFP and not na(fpDelta)
+    // Delta estremo negativo: conferma il panico dal lato order flow
+    if fpExtremeSell
+        fpPanicBonus := fpPanicBonus + fpPanicBoostPoints
+    // Sell acceleration: il panico sta peggiorando barra dopo barra
+    if fpSellAccelerating
+        fpPanicBonus := fpPanicBonus + math.round(fpPanicBoostPoints * 0.5)
+
+panicScore := panicScore + fpPanicBonus
+
+// MODIFICA 1: Soglia adattiva - in Strong Bear si abbassa da 40 a 25
+panicThreshold = (useSogliaRidottaBear and isStrongBear) ? 20 : 35
+isPanicMode = panicScore >= panicThreshold and usePanicMode
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEAR INDEX (indicatore interno di paura)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Volatility component
+atrNorm = atr14 / ta.sma(atr14, 50) * 100 - 100  // deviazione dalla media
+volComponent = math.min(50, math.max(0, atrNorm))
+
+// RSI component (inverted: lower RSI = more fear)
+rsiComponent = math.min(50, math.max(0, (50 - rsi)))
+
+// Volume component
+volRatio = volume / volMA20
+volFearComponent = math.min(30, math.max(0, (volRatio - 1) * 30))
+
+// FEAR INDEX (0-100) - scalato correttamente
+// Max teorico grezzo: volComponent(50)*0.3 + rsiComponent(50)*0.4 + volFearComponent(30)*0.3 = 44
+// Normalizzato a 0-100 per rendere le soglie intuitive
+rawFear = volComponent * 0.3 + rsiComponent * 0.4 + volFearComponent * 0.3
+fearIndex = math.min(100, rawFear * 100 / 44)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME DENSITY & REGIME MULTIPLIER (per TP adattivi)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Proxy vuoto volumetrico: densità volumetrica relativa breve/lungo termine
+volSMA50 = ta.sma(volume, 50)
+volSMA200 = ta.sma(volume, 200)
+volDensity = volSMA200 > 0 ? volSMA50 / volSMA200 : 1.0
+isVolVoid = volDensity < volVoidThreshold
+
+// Moltiplicatore regime per TP dinamici
+regimeMult = useRegimeTP ? (isStrongBear and isVolVoid ? regimeTPmult_sbVoid : (isStrongBear ? regimeTPmult_sb : (isBearMarket ? regimeTPmult_bear : 1.0))) : 1.0
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE INDICATORS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// TEMA IN / OUT (più veloci)
+tema_in  = 3*ta.ema(close, temaLen_in) - 3*ta.ema(ta.ema(close, temaLen_in), temaLen_in) + ta.ema(ta.ema(ta.ema(close, temaLen_in), temaLen_in), temaLen_in)
+
+// TEMA Slope
+tema_slope = tema_in - tema_in[1]
+tema_slope_ma = ta.sma(tema_slope, 3)
+isTemaFalling = tema_slope < 0 and tema_slope_ma < 0
+
+// Supertrend IN
+upC_in = hl2 - stFactor_in * atr10
+dnC_in = hl2 + stFactor_in * atr10
+var float _up_in = na
+var float _dn_in = na
+var int trend_in = 0
+_up_in := close[1] > nz(_up_in[1], upC_in) ? math.max(upC_in, nz(_up_in[1], upC_in)) : upC_in
+_dn_in := close[1] < nz(_dn_in[1], dnC_in) ? math.min(dnC_in, nz(_dn_in[1], dnC_in)) : dnC_in
+trend_in := close > _dn_in[1] ? 1 : close < _up_in[1] ? -1 : nz(trend_in[1])
+
+// WT IN (Wave Trend)
+ap_in  = hlc3
+esa_in = ta.ema(ap_in, wtN1)
+d_in   = ta.ema(math.abs(ap_in - esa_in), wtN1)
+ci_in  = (ap_in - esa_in) / (0.015 * d_in)
+wt1_in = ta.ema(ci_in, wtN2_in)
+wt2_in = ta.sma(wt1_in, 4)
+wtDown = wt1_in < wt2_in
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTRY CONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTRY SIGNAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+shortOK = isPanicMode and isBearMarket and trend_in == -1 and (wtDown or isRsiPanic) and isVolSpike
+// Anti-repainting: segnale valido solo su barra confermata
+shortSignal = shortOK and barstate.isconfirmed
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REGIME SHIFT MONITOR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Componenti individuali del Regime Shift Score
+int rssSTup = trend_in == 1 and trend_in[1] == 1 and trend_in[2] == 1 ? 20 : 0
+int rssPanicDown = panicScore < nz(panicScore[1]) and nz(panicScore[1]) < nz(panicScore[2]) ? 15 : 0
+int rssFearLow = fearIndex < 5 and nz(fearIndex[1]) < 5 and nz(fearIndex[2]) < 5 ? 15 : 0
+int rssAboveTema = close > tema_in ? 15 : 0
+int rssLowRed = (close >= open and close[1] >= open[1]) ? 10 : 0
+int rssAtrCompress = not na(atr14[5]) and atr14 < atr14[5] * 0.85 ? 10 : 0
+float regimeShiftScore = math.max(0, math.min(100, rssSTup + rssPanicDown + rssFearLow + rssAboveTema + rssLowRed + rssAtrCompress))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLOTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// TEMA 200 HTF
+plot(showBearFilter ? tema200_htf : na, "TEMA 200 HTF", color=isBearMarket ? color.new(color.red, 40) : color.new(color.green, 40), linewidth=3)
+
+// TEMA lines
+plot(tema_in, "TEMA IN", color=color.new(color.purple, 0), linewidth=2)
+
+// Supertrend
+plot(trend_in==-1 ? _dn_in : na, "ST Dn", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+plot(trend_in==1 ? _up_in : na, "ST Up", color=color.new(color.green, 0), linewidth=2, style=plot.style_linebr)
+
+// Background
+bgcolor(showPanicZones and isPanicMode ? color.new(color.orange, 85) : na, title="Panic Zone")
+bgcolor(isBearMarket ? color.new(color.red, 97) : color.new(color.green, 97), title="Bear/Bull")
+
+// Footprint POC (solo se abilitato)
+plot(useFP and not na(fpPocMid) ? fpPocMid : na, "FP POC", color=color.new(color.purple, 30), linewidth=2, style=plot.style_stepline)
+plot(useFP and not na(fpVAH) ? fpVAH : na, "FP VAH", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
+plot(useFP and not na(fpVAL) ? fpVAL : na, "FP VAL", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
+
+// Entry signal
+plotshape(shortSignal, "SHORT ENTRY", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
+
+// Panic indicators
+plotshape(showPanicZones and isPanicBar, "Panic Bar", shape.circle, location.belowbar, color.new(color.orange, 0), size=size.tiny)
+plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Calcolo offset per labels
+labelOffset = atr14 * labelOffsetATR
+
+// Dimensione label dinamica
+lblSize = labelSize == "tiny" ? size.tiny : (labelSize == "small" ? size.small : size.normal)
+
+if showLabels and shortSignal
+    entryText = "SHORT PANIC\n" + str.tostring(close, "#.##") + "\nScore: " + str.tostring(panicScore)
+    label.new(bar_index, high + labelOffset,
+         text=entryText,
+         style=label.style_label_down,
+         color=color.orange,
+         textcolor=color.white,
+         size=lblSize)
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if showDashboard
+    var table dashboard = table.new(position.bottom_right, 3, 27, bgcolor=color.new(color.black, 85), border_width=1)
+
+    // Colori
+    hdrBg   = color.new(#4a148c, 0)
+    sectBg  = color.new(#1a1a2e, 0)
+    rowBg   = color.new(#0f0f1a, 0)
+    rowAlt  = color.new(#141428, 0)
+    fpHdr   = color.new(#004d40, 0)
+
+    // ── HEADER ──
+    tfLabel = is15m ? "15m" : (is30m ? "30m" : (is45m ? "45m" : (timeframe.period == "60" ? "1H" : (timeframe.period == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : timeframe.period))))))
+    statusDot = shortOK ? "READY" : "IDLE"
+    statusCol = shortOK ? color.lime : color.gray
+    table.cell(dashboard, 0, 0, "PANIC HUNTER v3.5", text_color=color.white, text_size=size.small, bgcolor=hdrBg)
+    table.cell(dashboard, 1, 0, tfLabel, text_color=color.white, text_size=size.small, bgcolor=hdrBg)
+    table.cell(dashboard, 2, 0, statusDot, text_color=statusCol, text_size=size.small, bgcolor=hdrBg)
+
+    // ── FILTRI ENTRY ──
+    bearOK = isBearMarket ? "BEAR" : "NO BEAR"
+    bearCol = isBearMarket ? color.lime : color.red
+    stOK = trend_in == -1 ? "ST DOWN" : "ST UP"
+    stCol = trend_in == -1 ? color.lime : color.red
+    bothOK = isBearMarket and trend_in == -1
+    table.cell(dashboard, 0, 1, bothOK ? "SHORT OK" : "BLOCKED", text_color=bothOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectBg)
+    table.cell(dashboard, 1, 1, bearOK, text_color=bearCol, text_size=size.small, bgcolor=sectBg)
+    table.cell(dashboard, 2, 1, stOK, text_color=stCol, text_size=size.small, bgcolor=sectBg)
+
+    // ── MERCATO ──
+    table.cell(dashboard, 0, 2, "MERCATO", text_color=color.new(color.white, 30), text_size=size.tiny, bgcolor=sectBg)
+    table.cell(dashboard, 1, 2, "", bgcolor=sectBg)
+    table.cell(dashboard, 2, 2, "", bgcolor=sectBg)
+
+    // Regime + Supertrend
+    marketStatus = isStrongBear ? "STRONG BEAR" : (isBearMarket ? "BEAR" : "BULL")
+    marketColor = isStrongBear ? color.red : (isBearMarket ? color.orange : color.green)
+    trendText = trend_in == -1 ? "ST DOWN" : "ST UP"
+    trendColor = trend_in == -1 ? color.red : color.green
+    table.cell(dashboard, 0, 3, "Regime", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, 3, marketStatus, text_color=marketColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 3, trendText, text_color=trendColor, text_size=size.small, bgcolor=rowBg)
+
+    // Panic Score
+    panicColor = isPanicMode ? color.red : (panicScore >= panicThreshold * 0.6 ? color.orange : color.gray)
+    panicLabel = isPanicMode ? "PANIC!" : ""
+    table.cell(dashboard, 0, 4, "Panic", text_color=color.gray, text_size=size.tiny, bgcolor=rowAlt)
+    table.cell(dashboard, 1, 4, str.tostring(panicScore) + "/" + str.tostring(panicThreshold), text_color=panicColor, text_size=size.small, bgcolor=rowAlt)
+    table.cell(dashboard, 2, 4, panicLabel, text_color=color.red, text_size=size.small, bgcolor=rowAlt)
+
+    // RSI + Volume
+    rsiColor = rsi < 30 ? color.green : (rsi > 70 ? color.red : color.white)
+    volText = isVolSpike ? "SPIKE!" : "—"
+    volColor = isVolSpike ? color.orange : color.gray
+    table.cell(dashboard, 0, 5, "RSI", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, 5, str.tostring(rsi, "#.#"), text_color=rsiColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 5, "Vol " + volText, text_color=volColor, text_size=size.small, bgcolor=rowBg)
+
+    // WT + TEMA
+    wtText = wtDown ? "WT DOWN" : "WT UP"
+    wtColor = wtDown ? color.red : color.green
+    temaText = isTemaFalling ? "TEMA FALL" : "TEMA RISE"
+    temaColor = isTemaFalling ? color.red : color.green
+    table.cell(dashboard, 0, 6, wtText, text_color=wtColor, text_size=size.tiny, bgcolor=rowAlt)
+    table.cell(dashboard, 1, 6, temaText, text_color=temaColor, text_size=size.tiny, bgcolor=rowAlt)
+    // Fear Index nella terza colonna
+    fearColor = fearIndex > 50 ? color.red : (fearIndex > 30 ? color.orange : color.green)
+    table.cell(dashboard, 2, 6, "Fear " + str.tostring(fearIndex, "#") + "%", text_color=fearColor, text_size=size.tiny, bgcolor=rowAlt)
+
+    // Vol Density
+    vdColor = isVolVoid ? color.orange : color.green
+    table.cell(dashboard, 0, 7, "VolDens", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, 7, str.tostring(volDensity, "#.##"), text_color=vdColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 7, isVolVoid ? "VOID" : "OK", text_color=vdColor, text_size=size.small, bgcolor=rowBg)
+
+    // ── FOOTPRINT ORDER FLOW ──
+    if useFP
+        table.cell(dashboard, 0, 8, "ORDERFLOW", text_color=color.white, text_size=size.tiny, bgcolor=fpHdr)
+        table.cell(dashboard, 1, 8, "", bgcolor=fpHdr)
+        table.cell(dashboard, 2, 8, "", bgcolor=fpHdr)
+
+        // Delta + Segnale
+        string deltaStr = not na(fpDelta) ? str.tostring(fpDelta, "#.#") : "N/A"
+        color deltaCol = na(fpDelta) ? color.gray : fpDelta > 0 ? color.green : fpDelta < 0 ? color.red : color.white
+        string deltaSignal = fpExtremeSell ? "SELL!" : fpAbsorption ? "ABSORB" : fpSellAccelerating ? "ACCEL↓" : fpDeltaDivShort ? "DIV↓" : "—"
+        color sigCol = fpExtremeSell or fpSellAccelerating ? color.red : fpAbsorption ? color.orange : fpDeltaDivShort ? color.fuchsia : color.gray
+        table.cell(dashboard, 0, 9, "Delta", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 9, deltaStr, text_color=deltaCol, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 9, deltaSignal, text_color=sigCol, text_size=size.small, bgcolor=rowBg)
+
+        // POC + Conferme
+        string pocStr = not na(fpPocMid) ? str.tostring(fpPocMid, "#.#") : "N/A"
+        string pocDir = fpPocFalling ? "↓" : fpPocRising ? "↑" : "—"
+        color pocCol = fpPocFalling ? color.red : fpPocRising ? color.green : color.white
+        string confStr = "S:" + str.tostring(fpShortConfirmCount) + "/5"
+        string warnStr = ""
+        color confCol = fpShortConfirmCount >= 3 ? color.green : fpShortConfirmCount >= 1 ? color.white : color.gray
+        table.cell(dashboard, 0, 10, "POC", text_color=color.gray, text_size=size.tiny, bgcolor=rowAlt)
+        table.cell(dashboard, 1, 10, pocStr + " " + pocDir, text_color=pocCol, text_size=size.small, bgcolor=rowAlt)
+        table.cell(dashboard, 2, 10, confStr + warnStr, text_color=confCol, text_size=size.small, bgcolor=rowAlt)
+
+    // Offset
+    int fpOffset = useFP ? 3 : 0
+    int rsOffset = useRegimeShiftMonitor ? (showShiftDetail ? 5 : 2) : 0
+
+    // ── REGIME SHIFT MONITOR ──
+    if useRegimeShiftMonitor
+        rsHdrBg = regimeShiftScore <= 30 ? color.new(color.red, 50) : (regimeShiftScore <= 55 ? color.new(color.orange, 50) : (regimeShiftScore <= 75 ? color.new(color.yellow, 50) : color.new(color.lime, 50)))
+        table.cell(dashboard, 0, 8 + fpOffset, "REGIME SHIFT", text_color=color.white, text_size=size.tiny, bgcolor=rsHdrBg)
+        table.cell(dashboard, 1, 8 + fpOffset, "", bgcolor=rsHdrBg)
+        table.cell(dashboard, 2, 8 + fpOffset, "", bgcolor=rsHdrBg)
+
+        rsLabel = regimeShiftScore <= 30 ? "BEAR OK" : (regimeShiftScore <= 55 ? "SOFTENING" : (regimeShiftScore <= 75 ? "TRANSITION?" : "SHIFT!"))
+        rsScoreColor = regimeShiftScore <= 30 ? color.red : (regimeShiftScore <= 55 ? color.orange : (regimeShiftScore <= 75 ? color.yellow : color.lime))
+        table.cell(dashboard, 0, 9 + fpOffset, "Score", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, 9 + fpOffset, str.tostring(regimeShiftScore, "#") + "/100", text_color=rsScoreColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, 9 + fpOffset, rsLabel, text_color=rsScoreColor, text_size=size.small, bgcolor=rowBg)
+
+        if showShiftDetail
+            table.cell(dashboard, 0, 10 + fpOffset, "ST↑3 " + (rssSTup > 0 ? "+20" : "—"), text_color=rssSTup > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowAlt)
+            table.cell(dashboard, 1, 10 + fpOffset, "Pan↓ " + (rssPanicDown > 0 ? "+15" : "—"), text_color=rssPanicDown > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowAlt)
+            table.cell(dashboard, 2, 10 + fpOffset, "Fear↓ " + (rssFearLow > 0 ? "+15" : "—"), text_color=rssFearLow > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowAlt)
+
+            table.cell(dashboard, 0, 11 + fpOffset, ">TEMA " + (rssAboveTema > 0 ? "+15" : "—"), text_color=rssAboveTema > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 1, 11 + fpOffset, "NoRed " + (rssLowRed > 0 ? "+10" : "—"), text_color=rssLowRed > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+            table.cell(dashboard, 2, 11 + fpOffset, "ATR↓ " + (rssAtrCompress > 0 ? "+10" : "—"), text_color=rssAtrCompress > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowBg)
+
+            table.cell(dashboard, 0, 12 + fpOffset, "Exit↓ " + (rssExitDown > 0 ? "+15" : "—"), text_color=rssExitDown > 0 ? color.green : color.gray, text_size=size.tiny, bgcolor=rowAlt)
+            table.cell(dashboard, 1, 12 + fpOffset, "", bgcolor=rowAlt)
+            table.cell(dashboard, 2, 12 + fpOffset, "", bgcolor=rowAlt)
+
+    // Base row
+    int s = 8 + fpOffset + rsOffset
+
+    // ── SEGNALE ──
+    sigHdrBg = shortOK ? color.new(#b71c1c, 0) : color.new(#1b5e20, 0)
+    sigText = shortOK ? "SHORT NOW!" : "WAITING"
+    table.cell(dashboard, 0, s, sigText, text_color=color.white, text_size=size.small, bgcolor=sigHdrBg)
+    table.cell(dashboard, 1, s, "Score: " + str.tostring(panicScore), text_color=shortOK ? color.red : color.gray, text_size=size.small, bgcolor=sigHdrBg)
+    table.cell(dashboard, 2, s, "", bgcolor=sigHdrBg)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+alertcondition(shortSignal, title="SHORT ENTRY", message="SHORT ENTRY su {{ticker}} — Panic Score {{plot_0}} — ENTRA ORA!")
+alertcondition(isPanicMode and not isPanicMode[1], title="Panic Mode", message="PANIC MODE attivo su {{ticker}} — prepara entry!")
+// Regime Shift alert
+alertcondition(useRegimeShiftMonitor and regimeShiftScore >= 56 and regimeShiftScore[1] < 56, title="Regime Shift Warning", message="REGIME SHIFT SCORE alto su {{ticker}} — verificare cambio contesto SHORT")
+
+// Footprint alerts (v3.2)
+alertcondition(useFP and fpExtremeSell and not fpExtremeSell[1], title="FP Extreme Sell", message="FOOTPRINT: Extreme selling pressure su {{ticker}} — Delta molto negativo")
+alertcondition(useFP and fpDeltaDivShort and not fpDeltaDivShort[1], title="FP Delta Div SHORT", message="FOOTPRINT: Delta divergence bearish su {{ticker}} — Prezzo sale, delta scende")
+alertcondition(useFP and fpAbsorption and not fpAbsorption[1], title="FP Absorption", message="FOOTPRINT: Absorption pattern su {{ticker}} — Buyer intrappolati, delta positivo con candela rossa")
+
