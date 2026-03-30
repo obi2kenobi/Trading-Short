@@ -668,19 +668,19 @@ if inShort
 
         // TP1 Rebound Close — se dopo TP1 il prezzo rimbalza e ritocca il livello TP1, chiudi tutto
         if useTP1ReboundClose and tp1_hit and not tp2_hit and close_tf >= tp1Price
-            strategy.close("Short", comment="TP1 Rebound")
+            strategy.cancel("SL")
+            strategy.close_all(comment="TP1 Rebound")
             tp2_hit := true
 
         // TP2 - chiude tutta la posizione rimanente
         if not tp2_hit and tp1_hit and close_tf <= tp2Price
-            strategy.close("Short", comment="TP2")
+            strategy.cancel("SL")
+            strategy.close_all(comment="TP2")
             tp2_hit := true
 
         // SL attivo solo se la posizione non è stata chiusa dai TP
         if not tp2_hit
             strategy.exit("SL", from_entry="Short", stop=stopPrice)
-        else
-            strategy.cancel("SL")
     else
         // Single TP/SL
         strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
