@@ -52,8 +52,8 @@ emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65
 
 grpTP = "═══ TAKE PROFIT ═══"
 useDynamicTP = input.bool(true, "TP Dinamico (basato su ATR)", group=grpTP, tooltip="Il TP si adatta alla volatilità corrente. Il valore % diventa fallback")
-tp1_perc_input = input.float(2.0, "TP %", minval=0.1, maxval=10.0, step=0.1, group=grpTP, tooltip="Take Profit % — fallback se TP dinamico è off") / 100
-tpATRmult = input.float(2.0, "TP ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP = entry - ATR * questo valore")
+tp1_perc_input = input.float(1.5, "TP %", minval=0.1, maxval=10.0, step=0.1, group=grpTP, tooltip="Take Profit % — fallback se TP dinamico è off") / 100
+tpATRmult = input.float(1.5, "TP ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP = entry - ATR * questo valore")
 useRegimeTP = input.bool(true, "TP Adattivo al Regime", group=grpTP, tooltip="Scala il TP in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
