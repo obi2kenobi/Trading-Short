@@ -1030,6 +1030,11 @@ if showDashboard
         table.cell(dashboard, 0, s + 2, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
         table.cell(dashboard, 1, s + 2, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
         table.cell(dashboard, 2, s + 2, "", bgcolor=rowBg)
+        // Clear stale position rows
+        for i = 3 to 5
+            table.cell(dashboard, 0, s + i, "", bgcolor=rowBg)
+            table.cell(dashboard, 1, s + i, "", bgcolor=rowBg)
+            table.cell(dashboard, 2, s + i, "", bgcolor=rowBg)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
