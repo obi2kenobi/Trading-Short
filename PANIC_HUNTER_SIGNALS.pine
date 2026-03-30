@@ -263,10 +263,7 @@ fearIndex = math.min(100, rawFear * 100 / 44)
 volSMA50 = ta.sma(volume, 50)
 volSMA200 = ta.sma(volume, 200)
 volDensity = volSMA200 > 0 ? volSMA50 / volSMA200 : 1.0
-isVolVoid = volDensity < volVoidThreshold
-
-// Moltiplicatore regime per TP dinamici
-regimeMult = useRegimeTP ? (isStrongBear and isVolVoid ? regimeTPmult_sbVoid : (isStrongBear ? regimeTPmult_sb : (isBearMarket ? regimeTPmult_bear : 1.0))) : 1.0
+isVolVoid = volDensity < 0.7
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CORE INDICATORS
