@@ -685,12 +685,19 @@ if inShort
         // Single TP/SL
         strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
 
+    // Forza chiusura: se tp2_hit è true ma siamo ancora in posizione, chiudi ogni barra
+    if tp2_hit
+        strategy.cancel_all()
+        strategy.close_all(comment="Force Close")
+
     // Signal-based exit - emergency esce sempre, cover solo se TP1 già colpito o TP disabilitati
     if exit_bar
         if emergencyExit
-            strategy.close("Short", comment="EMERGENCY")
+            strategy.cancel_all()
+            strategy.close_all(comment="EMERGENCY")
         else if not usePartialTP or tp1_hit
-            strategy.close("Short", comment="Cover")
+            strategy.cancel_all()
+            strategy.close_all(comment="Cover")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLOTS
