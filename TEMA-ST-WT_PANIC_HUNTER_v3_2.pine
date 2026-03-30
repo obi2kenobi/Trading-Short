@@ -13,15 +13,12 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 // — TIMEFRAME —
-tf = timeframe.period
 tf_filter = input.string("D", "Timeframe filtro bear market", options = ["D","W"])
 
-// — DATI MULTITF —
-[close_tf, high_tf, low_tf, hl2_tf, hlc3_tf, vol_tf, open_tf] = request.security(syminfo.tickerid, tf, [close, high, low, hl2, hlc3, volume, open])
+// — DATI HTF —
 close_htf = request.security(syminfo.tickerid, tf_filter, close)
-// FIX 1: ATR calcolati sul TF operativo (coerenti con i dati OHLC usati per Supertrend e trailing stop)
-atr14 = request.security(syminfo.tickerid, tf, ta.atr(14))
-atr10 = request.security(syminfo.tickerid, tf, ta.atr(10))
+atr14 = ta.atr(14)
+atr10 = ta.atr(10)
 
 // — STRATEGY SETTINGS —
 strategy("TEMA-ST-WT PANIC HUNTER v3.5", overlay=true,
@@ -51,8 +48,9 @@ trailBearMult = input.float(1.3, "Trail Multiplier Bear", minval=1.0, maxval=2.0
 useDelayedTrail = input.bool(true, "Trailing Attivo Solo Dopo TP1", group=grpRisk, tooltip="Se attivo, il trailing stop si muove solo dopo che TP1 è stato colpito. Prima di TP1 lo stop iniziale (strutturale o %) rimane fisso.")
 useBreakevenAfterTP1 = input.bool(true, "Breakeven Stop Dopo TP1", group=grpRisk, tooltip="Dopo che TP1 viene colpito, lo stop loss si sposta al prezzo di entry (breakeven). Protegge il residuo da inversioni.")
 breakEvenBuffer = input.float(0.05, "Breakeven Buffer %", minval=0.0, maxval=0.5, step=0.01, group=grpRisk, tooltip="Piccolo buffer sotto entry per coprire spread/slippage. 0.05% = ~10 punti su NAS")
-useMCcap = input.bool(false, "Stop Cap su Entry Open", group=grpRisk, tooltip="ATTENZIONE: può interferire con i TP parziali scalati. Lasciare OFF in modalità segnali manuali. Testare attentamente prima di attivare.")
-mcCapATRmult = input.float(2.5, "Stop Cap ATR Multiplier", minval=1.0, maxval=5.0, step=0.1, group=grpRisk, tooltip="Stop cap = open entry + ATR * questo valore. Su 2H con ATR ~200pt: 2.5x = ~500pt = ~500$ per contratto. Aumenta per più spazio, diminuisci per meno rischio.")
+strongBearExitBonus = input.float(2.5, "Exit Threshold Bonus Strong Bear", minval=0.0, maxval=4.0, step=0.5, group=grpRisk, tooltip="Aggiunto alla soglia exit in Strong Bear per evitare uscite premature su rimbalzi tecnici")
+rsiExitLevelBear = input.int(65, "RSI Exit Level Strong Bear", minval=55, maxval=75, group=grpRisk, tooltip="RSI minimo per segnale exit in Strong Bear. Più alto = lascia correre più a lungo")
+emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65, maxval=80, group=grpRisk, tooltip="RSI per emergency exit in Strong Bear. Più alto = protezione solo su rimbalzi veramente forti")
 
 grpTP = "═══ TAKE PROFIT SCALATO ═══"
 usePartialTP = input.bool(true, "Usa Take Profit Parziali", group=grpTP)
@@ -83,22 +81,11 @@ useRegimeShiftMonitor = input.bool(true, "Abilita Regime Shift Score", group=grp
 showShiftDetail = input.bool(false, "Mostra dettaglio contributi", group=grpRegimeShift, tooltip="Se attivo, mostra nel dashboard ogni componente del punteggio Regime Shift")
 
 grpFilter = "═══ FILTRI MERCATO ═══"
-useBearFilter = input.bool(false, "Richiedi Bear Market (sotto TEMA200)", group=grpFilter, tooltip="Se disattivato, opera anche in bull market")
 useVolumeFilter = input.bool(true, "Richiedi Volume Alto", group=grpFilter)
 useLateralFilter = input.bool(true, "Evita Mercati Laterali", group=grpFilter)
 useSessionFilter = input.bool(true, "Filtro Sessione (solo 4H)", group=grpFilter, tooltip="Su 4H, evita entry in orari a bassa liquidità. Ignorato su Daily")
 sessionStart = input.int(8, "Sessione Inizio (UTC)", minval=0, maxval=23, group=grpFilter, tooltip="Ora UTC di inizio sessione attiva")
 sessionEnd = input.int(21, "Sessione Fine (UTC)", minval=0, maxval=23, group=grpFilter, tooltip="Ora UTC di fine sessione attiva")
-
-grpBearMode = "═══ SHORT BEAR (più selettivo) ═══"
-useBearMode = input.bool(false, "Abilita SHORT BEAR mode", group=grpBearMode)
-bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=50, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura. Fear Index ora scala 0-100")
-bearMinFearReduced = input.float(7.0, "Fear Ridotto in Strong Bear %", minval=0, maxval=50, step=0.5, group=grpBearMode, tooltip="Fear Index minimo quando isStrongBear è attivo. Valore ridotto per bear strutturale")
-bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
-
-strongBearExitBonus = input.float(2.5, "Exit Threshold Bonus Strong Bear", minval=0.0, maxval=4.0, step=0.5, group=grpBearMode, tooltip="Aggiunto alla soglia exit in Strong Bear per evitare uscite premature su rimbalzi tecnici")
-rsiExitLevelBear = input.int(65, "RSI Exit Level Strong Bear", minval=55, maxval=75, group=grpBearMode, tooltip="RSI minimo per segnale exit in Strong Bear. Più alto = lascia correre più a lungo")
-emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65, maxval=80, group=grpBearMode, tooltip="RSI per emergency exit in Strong Bear. Più alto = protezione solo su rimbalzi veramente forti")
 
 grpFP = "═══ FOOTPRINT ORDER FLOW ═══"
 useFP = input.bool(true, "Enable Footprint Data", group=grpFP, tooltip="Richiede piano Premium/Ultimate. Se disabilitato, il sistema funziona esattamente come v3.1")
@@ -116,7 +103,6 @@ temaLen_in = input.int(28, "TEMA IN Period", minval=10, maxval=50, group=grpIndi
 temaLen_out = input.int(24, "TEMA OUT Period", minval=10, maxval=50, group=grpIndicators)
 stFactor_in = input.float(2.4, "Supertrend IN Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
 stFactor_out = input.float(2.2, "Supertrend OUT Factor", minval=1.5, maxval=4.0, step=0.1, group=grpIndicators)
-maxDistATR = input.float(2.5, "Max Distance ATR", minval=0.5, maxval=4.0, step=0.1, group=grpIndicators)
 
 grpVisual = "═══ VISUALIZZAZIONE ═══"
 showLabels = input.bool(true, "Mostra labels trade", group=grpVisual)
@@ -150,7 +136,6 @@ is45m = timeframe.period == "45"
 isSubHourly = is15m or is30m or is45m
 is4H = timeframe.period == "240"
 isDaily = timeframe.period == "D" or timeframe.period == "1D"
-isHighTF = isDaily
 
 // Moltiplicatore adattivo per TF
 tfStopMult     = isDaily ? 1.4 : (is4H ? 1.0 : (isSubHourly ? 0.9 : 1.2))
@@ -161,14 +146,12 @@ tfPanicMult    = isDaily ? 1.5 : (is4H ? 1.0 : (isSubHourly ? 0.8 : 1.2))
 adaptedStopNormal = stopPerc_normal * tfStopMult
 adaptedStopPanic  = stopPerc_panic * tfStopMult
 adaptedTrailATR   = trailATRmult * tfTrailMult
-
 adaptedPanicBarATR = panicBarATRmult * tfPanicMult
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PARAMETRI INTERNI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-stPeriod  = 10
 wtN1      = 10
 // FIX 2: WT IN e OUT usavano lo stesso N2 → serie identiche. Ora differenziati:
 //   IN  (entry): N2 più lungo = segnale più lento, meno falsi positivi in entrata
@@ -215,7 +198,7 @@ float fpBuySellRatio = not na(fpSellVol) and fpSellVol > 0 ? nz(fpBuyVol) / fpSe
 bool fpExtremeSell = not na(fpDelta) and fpDelta < 0 and fpAvgAbsDelta > 0 and math.abs(fpDelta) > fpAvgAbsDelta * 1.5
 
 // 2. ABSORPTION: delta positivo ma candela bearish = compratori intrappolati
-bool fpAbsorption = not na(fpDelta) and nz(fpDelta) > 0 and close_tf < open_tf
+bool fpAbsorption = not na(fpDelta) and nz(fpDelta) > 0 and close < open
 
 // 3. SELL PRESSURE ACCELERATION: delta sempre più negativo su barre consecutive
 bool fpSellAccelerating = not na(fpDelta) and not na(fpDelta[1]) and fpDelta < 0 and fpDelta[1] < 0 and fpDelta < fpDelta[1]
@@ -225,7 +208,7 @@ float fpPocSlope = not na(fpPocMid) and not na(fpPocMid[3]) ? (fpPocMid - fpPocM
 bool fpPocFalling = not na(fpPocSlope) and fpPocSlope < 0
 
 // 5. DELTA DIVERGENCE SHORT: prezzo fa higher high ma delta è inferiore
-bool fpDeltaDivShort = not na(fpDelta) and high_tf > ta.highest(high_tf[1], fpDeltaDivBars) and nz(fpDelta) < ta.highest(nz(fpDelta[1]), fpDeltaDivBars)
+bool fpDeltaDivShort = not na(fpDelta) and high > ta.highest(high[1], fpDeltaDivBars) and nz(fpDelta) < ta.highest(nz(fpDelta[1]), fpDeltaDivBars)
 
 // Conteggio conferme SHORT footprint
 int fpShortConfirmCount = (fpExtremeSell ? 1 : 0) + (fpAbsorption ? 1 : 0) + (fpSellAccelerating ? 1 : 0) + (fpPocFalling ? 1 : 0) + (fpDeltaDivShort ? 1 : 0)
@@ -235,10 +218,10 @@ int fpShortConfirmCount = (fpExtremeSell ? 1 : 0) + (fpAbsorption ? 1 : 0) + (fp
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // 1. DELTA DIVERGENCE EXIT: prezzo continua a scendere ma delta sale
-bool fpDeltaDivExit = not na(fpDelta) and low_tf < ta.lowest(low_tf[1], fpDeltaDivBars) and nz(fpDelta) > ta.lowest(nz(fpDelta[1]), fpDeltaDivBars)
+bool fpDeltaDivExit = not na(fpDelta) and low < ta.lowest(low[1], fpDeltaDivBars) and nz(fpDelta) > ta.lowest(nz(fpDelta[1]), fpDeltaDivBars)
 
 // 2. BULLISH ABSORPTION: delta negativo ma candela verde
-bool fpBullAbsorption = not na(fpDelta) and nz(fpDelta) < 0 and close_tf > open_tf
+bool fpBullAbsorption = not na(fpDelta) and nz(fpDelta) < 0 and close > open
 
 // 3. EXTREME BUY PRESSURE: delta molto positivo improvviso
 bool fpExtremeBuy = not na(fpDelta) and fpDelta > 0 and fpAvgAbsDelta > 0 and fpDelta > fpAvgAbsDelta * 1.5
@@ -261,39 +244,38 @@ bool fpCVDfalling = fpCVD < fpCVD_sma5
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // 1. VOLUME SPIKE DETECTION
-volMA20 = ta.sma(vol_tf, 20)
-volMA5 = ta.sma(vol_tf, 5)
-isVolSpike = vol_tf > volMA20 * volSpikeMultiplier
-isVolAccelerating = volMA5 > volMA20 * 1.3
+volMA20 = ta.sma(volume, 20)
+
+isVolSpike = volume > volMA20 * volSpikeMultiplier
 
 // 2. PANIC BAR DETECTION (candele di panico)
-candleBody = math.abs(close_tf - open_tf)
-candleRange = high_tf - low_tf
-isBearishCandle = close_tf < open_tf
+candleBody = math.abs(close - open)
+candleRange = high - low
+isBearishCandle = close < open
 isPanicBar = isBearishCandle and candleBody > atr14 * adaptedPanicBarATR and candleBody > candleRange * 0.7
 
 // 3. RSI CRASH DETECTION
-rsi = ta.rsi(close_tf, rsiLen)
+rsi = ta.rsi(close, rsiLen)
 rsi_prev = rsi[1]  // usa il valore RSI della barra precedente, non ricalcolare
 isRsiPanic = rsi < rsiPanicLevel
 isRsiCrashing = rsi < rsi_prev - 5 and rsi < 50  // RSI in caduta rapida
 
 // 4. PRICE VELOCITY (accelerazione discesa)
-priceChange1 = (close_tf - close_tf[1]) / close_tf[1] * 100
-priceChange3 = (close_tf - close_tf[3]) / close_tf[3] * 100
+priceChange1 = (close - close[1]) / close[1] * 100
+priceChange3 = (close - close[3]) / close[3] * 100
 isPriceAccelerating = priceChange1 < -0.5 and priceChange3 < -1.5
 
 // 5. GAP DOWN DETECTION
-gapDown = open_tf < low_tf[1]
-significantGap = gapDown and (low_tf[1] - open_tf) > atr14 * 0.5
+gapDown = open < low[1]
+significantGap = gapDown and (low[1] - open) > atr14 * 0.5
 
 // 6. CONSECUTIVE RED BARS
-redBar = close_tf < open_tf
+redBar = close < open
 consecutiveRed = redBar and redBar[1] and redBar[2]
 
 // 7. STRUCTURAL BREAKOUT: prezzo sotto regressione lineare di lungo periodo
-linregValue = ta.linreg(close_tf, 100, 0)
-isBelowLinreg = close_tf < linregValue
+linregValue = ta.linreg(close, 100, 0)
+isBelowLinreg = close < linregValue
 isStructuralBreakout = isBelowLinreg and isStrongBear
 
 // PANIC SCORE (0-100)
@@ -337,7 +319,7 @@ volComponent = math.min(50, math.max(0, atrNorm))
 rsiComponent = math.min(50, math.max(0, (50 - rsi)))
 
 // Volume component
-volRatio = vol_tf / volMA20
+volRatio = volume / volMA20
 volFearComponent = math.min(30, math.max(0, (volRatio - 1) * 30))
 
 // FEAR INDEX (0-100) - scalato correttamente
@@ -345,15 +327,14 @@ volFearComponent = math.min(30, math.max(0, (volRatio - 1) * 30))
 // Normalizzato a 0-100 per rendere le soglie intuitive
 rawFear = volComponent * 0.3 + rsiComponent * 0.4 + volFearComponent * 0.3
 fearIndex = math.min(100, rawFear * 100 / 44)
-isHighFear = fearIndex > 35
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VOLUME DENSITY & REGIME MULTIPLIER (per TP adattivi)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Proxy vuoto volumetrico: densità volumetrica relativa breve/lungo termine
-volSMA50 = ta.sma(vol_tf, 50)
-volSMA200 = ta.sma(vol_tf, 200)
+volSMA50 = ta.sma(volume, 50)
+volSMA200 = ta.sma(volume, 200)
 volDensity = volSMA200 > 0 ? volSMA50 / volSMA200 : 1.0
 isVolVoid = volDensity < volVoidThreshold
 
@@ -365,47 +346,45 @@ regimeMult = useRegimeTP ? (isStrongBear and isVolVoid ? regimeTPmult_sbVoid : (
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // TEMA IN / OUT (più veloci)
-tema_in  = 3*ta.ema(close_tf, temaLen_in) - 3*ta.ema(ta.ema(close_tf, temaLen_in), temaLen_in) + ta.ema(ta.ema(ta.ema(close_tf, temaLen_in), temaLen_in), temaLen_in)
-tema_out = 3*ta.ema(close_tf, temaLen_out) - 3*ta.ema(ta.ema(close_tf, temaLen_out), temaLen_out) + ta.ema(ta.ema(ta.ema(close_tf, temaLen_out), temaLen_out), temaLen_out)
+tema_in  = 3*ta.ema(close, temaLen_in) - 3*ta.ema(ta.ema(close, temaLen_in), temaLen_in) + ta.ema(ta.ema(ta.ema(close, temaLen_in), temaLen_in), temaLen_in)
+tema_out = 3*ta.ema(close, temaLen_out) - 3*ta.ema(ta.ema(close, temaLen_out), temaLen_out) + ta.ema(ta.ema(ta.ema(close, temaLen_out), temaLen_out), temaLen_out)
 
 // TEMA Slope
 tema_slope = tema_in - tema_in[1]
 tema_slope_ma = ta.sma(tema_slope, 3)
 isTemaFalling = tema_slope < 0 and tema_slope_ma < 0
-isTemaAccelerating = tema_slope < tema_slope[1] and tema_slope < 0
 
 // Supertrend IN
-upC_in = hl2_tf - stFactor_in * atr10
-dnC_in = hl2_tf + stFactor_in * atr10
+upC_in = hl2 - stFactor_in * atr10
+dnC_in = hl2 + stFactor_in * atr10
 var float _up_in = na
 var float _dn_in = na
 var int trend_in = 0
-_up_in := close_tf[1] > nz(_up_in[1], upC_in) ? math.max(upC_in, nz(_up_in[1], upC_in)) : upC_in
-_dn_in := close_tf[1] < nz(_dn_in[1], dnC_in) ? math.min(dnC_in, nz(_dn_in[1], dnC_in)) : dnC_in
-trend_in := close_tf > _dn_in[1] ? 1 : close_tf < _up_in[1] ? -1 : nz(trend_in[1])
+_up_in := close[1] > nz(_up_in[1], upC_in) ? math.max(upC_in, nz(_up_in[1], upC_in)) : upC_in
+_dn_in := close[1] < nz(_dn_in[1], dnC_in) ? math.min(dnC_in, nz(_dn_in[1], dnC_in)) : dnC_in
+trend_in := close > _dn_in[1] ? 1 : close < _up_in[1] ? -1 : nz(trend_in[1])
 
 // Supertrend OUT (più sensibile per exit veloci)
-upC_out = hl2_tf - stFactor_out * atr10
-dnC_out = hl2_tf + stFactor_out * atr10
+upC_out = hl2 - stFactor_out * atr10
+dnC_out = hl2 + stFactor_out * atr10
 var float _up_out = na
 var float _dn_out = na
 var int trend_out = 0
-_up_out := close_tf[1] > nz(_up_out[1], upC_out) ? math.max(upC_out, nz(_up_out[1], upC_out)) : upC_out
-_dn_out := close_tf[1] < nz(_dn_out[1], dnC_out) ? math.min(dnC_out, nz(_dn_out[1], dnC_out)) : dnC_out
-trend_out := close_tf > _dn_out[1] ? 1 : close_tf < _up_out[1] ? -1 : nz(trend_out[1])
+_up_out := close[1] > nz(_up_out[1], upC_out) ? math.max(upC_out, nz(_up_out[1], upC_out)) : upC_out
+_dn_out := close[1] < nz(_dn_out[1], dnC_out) ? math.min(dnC_out, nz(_dn_out[1], dnC_out)) : dnC_out
+trend_out := close > _dn_out[1] ? 1 : close < _up_out[1] ? -1 : nz(trend_out[1])
 
 // WT IN (Wave Trend)
-ap_in  = hlc3_tf
+ap_in  = hlc3
 esa_in = ta.ema(ap_in, wtN1)
 d_in   = ta.ema(math.abs(ap_in - esa_in), wtN1)
 ci_in  = (ap_in - esa_in) / (0.015 * d_in)
 wt1_in = ta.ema(ci_in, wtN2_in)
 wt2_in = ta.sma(wt1_in, 4)
 wtDown = wt1_in < wt2_in
-wtCrossDown = ta.crossunder(wt1_in, wt2_in)
 
 // WT OUT
-ap_out  = hlc3_tf
+ap_out  = hlc3
 esa_out = ta.ema(ap_out, wtN1)
 d_out   = ta.ema(math.abs(ap_out - esa_out), wtN1)
 ci_out  = (ap_out - esa_out) / (0.015 * d_out)
@@ -414,8 +393,6 @@ wt2_out = ta.sma(wt1_out, 4)
 wtUp = ta.crossover(wt1_out, wt2_out)
 wtBullish = wt1_out > wt2_out
 
-// Distance from TEMA
-distATR = (tema_in - close_tf) / atr10
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY CONDITIONS
@@ -426,14 +403,14 @@ tema_slope_ratio = math.abs(tema_slope) / atr10
 activeSlopeThreshold = isPanicMode ? 0.005 : (isBearMarket ? 0.012 : 0.015)
 isFlatSlope = tema_slope_ratio < activeSlopeThreshold
 
-rangeHigh5 = ta.highest(high_tf, 5)
-rangeLow5  = ta.lowest(low_tf, 5)
-rangeCond  = (rangeHigh5 - rangeLow5) / close_tf < 0.008
+rangeHigh5 = ta.highest(high, 5)
+rangeLow5  = ta.lowest(low, 5)
+rangeCond  = (rangeHigh5 - rangeLow5) / close < 0.008
 isLateral  = isFlatSlope and rangeCond and not isPanicMode
 
 // Filtro volume (più permissivo in panic)
 activeVolMult = isPanicMode ? 0.6 : (isBearMarket ? 0.7 : 0.9)
-highVolume = vol_tf > volMA20 * activeVolMult
+highVolume = volume > volMA20 * activeVolMult
 
 // Filtro sessione: su 4H evita orari morti, su Daily sempre attivo
 currentHour = hour(time, "UTC")
@@ -441,7 +418,6 @@ inActiveSession = sessionStart < sessionEnd ? (currentHour >= sessionStart and c
 sessionOK = (not useSessionFilter) or isDaily or inActiveSession
 
 // Filtri condizionali
-bearOK = useBearFilter ? isBearMarket : true
 volOK = useVolumeFilter ? highVolume : true
 latOK = useLateralFilter ? not isLateral : true
 
@@ -450,8 +426,6 @@ latOK = useLateralFilter ? not isLateral : true
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var float entryPrice = na
-var float entryOpen = na
-var int entryBar = na
 var float trailStop = na
 var float lowestSinceEntry = na
 var bool tp1_hit = false
@@ -460,44 +434,17 @@ var string entryMode = ""
 
 inShort = strategy.position_size < 0
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// BEAR MODE FILTERS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 // Reset TP flags quando la posizione si chiude effettivamente
 if inShort[1] and not inShort
     tp1_hit := false
     tp2_hit := false
 
-// Conta candele rosse consecutive (per BEAR mode)
-redBarsCount = 0
-redBarsCount := close_tf < open_tf ? redBarsCount[1] + 1 : 0
-hasEnoughRedBars = redBarsCount >= bearMinRedBars
-
-// MODIFICA 2: Fear Index minimo adattivo - ridotto in Strong Bear
-activeBearMinFear = isStrongBear ? bearMinFearReduced : bearMinFear
-fearOK_bear = fearIndex >= activeBearMinFear
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SIGNALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// SCORE DIREZIONALE: almeno 2 su 3 indicatori devono confermare la direzione short
-dirScore = (trend_in == -1 ? 1 : 0) + (wtDown ? 1 : 0) + (isTemaFalling ? 1 : 0)
-directionOK = dirScore >= 2  // 2/3 bastano, non servono tutti e 3
-
-// CONDIZIONE SHORT STANDARD (BEAR) - richiede 2/3 segnali direzionali + filtri
-// FIX 5: distATR < 0 significa prezzo SOPRA la TEMA → la condizione <=maxDistATR era sempre vera
-//         Aggiunto distATR >= 0: si entra solo se il prezzo è sotto la TEMA (distanza positiva)
-shortBearConditions = directionOK and (distATR >= 0 and distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
-shortBearFilters = hasEnoughRedBars and fearOK_bear
-shortStandard = useBearMode and shortBearConditions and shortBearFilters
-
-// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri)
-shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
-
-// CONDIZIONE SHORT FINALE
-shortOK = shortStandard or shortPanic
+// CONDIZIONE SHORT PANIC
+shortOK = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
 
 // Entry
 // FIX 3: barstate.isconfirmed evita entry su tick intrabar non confermati (anti-repainting)
@@ -509,24 +456,19 @@ if not inShort and shortOK and barstate.isconfirmed
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Stop strutturale: massimo recente + buffer ATR (per Strong Bear)
-stopStrutturale = ta.highest(high_tf, structStopLookback) + atr14 * structStopATRbuffer
+stopStrutturale = ta.highest(high, structStopLookback) + atr14 * structStopATRbuffer
 useStructStop = useStructuralStop and isStrongBear
 
 // Reset on new position
 if inShort and not inShort[1]
     entryPrice := strategy.position_avg_price
-    entryOpen := open_tf
-    entryBar := bar_index
-    // Stop cap: limita lo stop sopra open entry + ATR buffer per evitare margin call su gap
-    stopCap = useMCcap and not na(entryOpen) ? entryOpen + atr14 * mcCapATRmult : na
-    // In Strong Bear usa stop strutturale, altrimenti stop % fisso — con cap se abilitato
+
+    // In Strong Bear usa stop strutturale, altrimenti stop % fisso
     if useStructStop
-        rawStop = stopStrutturale
-        trailStop := not na(stopCap) ? math.min(rawStop, stopCap) : rawStop
+        trailStop := stopStrutturale
     else
-        rawStop = entryPrice * (1 + (isPanicMode ? adaptedStopPanic : adaptedStopNormal))
-        trailStop := not na(stopCap) ? math.min(rawStop, stopCap) : rawStop
-    lowestSinceEntry := close_tf
+        trailStop := entryPrice * (1 + (isPanicMode ? adaptedStopPanic : adaptedStopNormal))
+    lowestSinceEntry := close
     tp1_hit := false
     tp2_hit := false
     entryMode := isPanicMode ? "PANIC" : "STANDARD"
@@ -539,11 +481,8 @@ effectiveTrailATR = adaptedTrailATR * trailRegimeMult
 // Trailing attivo solo dopo TP1 se useDelayedTrail è abilitato
 trailActive = useDelayedTrail ? tp1_hit : true
 
-// Stop cap ricalcolato ogni barra (entryOpen è fisso, atr14 aggiornato)
-stopCap = useMCcap and not na(entryOpen) ? entryOpen + atr14 * mcCapATRmult : na
-
 if inShort
-    lowestSinceEntry := math.min(lowestSinceEntry, low_tf)
+    lowestSinceEntry := math.min(lowestSinceEntry, low)
 
     if useTrailingStop and trailActive
         // Trailing stop basato su ATR dal minimo, con regime multiplier
@@ -552,10 +491,6 @@ if inShort
         // Il trailing stop può solo scendere (per short), con guard per na
         if na(trailStop) or newTrailStop < trailStop
             trailStop := newTrailStop
-    else if not trailActive and useMCcap
-        // Prima di TP1: applica cap se necessario (protezione gap)
-        if not na(stopCap) and not na(trailStop) and trailStop > stopCap
-            trailStop := stopCap
 
     // BREAKEVEN: dopo TP1, lo stop non sale sopra entry price (con buffer)
     if useBreakevenAfterTP1 and tp1_hit
@@ -591,7 +526,7 @@ tp2Price = entryPrice * (1 - tp2_perc)
 // Exit signals con pesi (segnali più forti valgono di più)
 exit_wt = wtUp or wtBullish
 exit_st = trend_out == 1
-exit_tema = close_tf > tema_out
+exit_tema = close > tema_out
 // MODIFICA 2: RSI exit adattiva — soglia più alta in Strong Bear
 rsiExitLevel = isStrongBear ? rsiExitLevelBear : 55
 exit_rsi = rsi > rsiExitLevel and rsi > rsi_prev
@@ -607,7 +542,7 @@ wt_exit_fp = fpExitEnabled and useFP ? fpExitWeight : 0.0
 exit_fp = fpExitEnabled and useFP and not na(fpDelta) and fpDeltaDivExit and fpExitWarningCount >= 2
 
 // Profit già realizzato
-currentProfit = inShort ? (entryPrice - close_tf) / entryPrice : 0
+currentProfit = inShort ? (entryPrice - close) / entryPrice : 0
 hasProfit = currentProfit > tp1_perc
 
 // EXIT PONDERATO: soglia adattiva al regime (v3.2: + footprint)
@@ -630,10 +565,9 @@ exit_bar = inShort and (shouldExit or emergencyExit)
 // Componenti individuali del Regime Shift Score
 int rssSTup = trend_in == 1 and trend_in[1] == 1 and trend_in[2] == 1 ? 20 : 0
 int rssPanicDown = panicScore < nz(panicScore[1]) and nz(panicScore[1]) < nz(panicScore[2]) ? 15 : 0
-float halfFearThresh = activeBearMinFear / 2
-int rssFearLow = fearIndex < halfFearThresh and nz(fearIndex[1]) < halfFearThresh and nz(fearIndex[2]) < halfFearThresh ? 15 : 0
-int rssAboveTema = close_tf > tema_in ? 15 : 0
-int rssLowRed = redBarsCount <= 1 ? 10 : 0
+int rssFearLow = fearIndex < 5 and nz(fearIndex[1]) < 5 and nz(fearIndex[2]) < 5 ? 15 : 0
+int rssAboveTema = close > tema_in ? 15 : 0
+int rssLowRed = (close >= open and close[1] >= open[1]) ? 10 : 0
 int rssAtrCompress = not na(atr14[5]) and atr14 < atr14[5] * 0.85 ? 10 : 0
 int rssExitDown = exitScore > 0 and exitScore < nz(exitScore[1]) and nz(exitScore[1]) < nz(exitScore[2]) ? 15 : 0
 
@@ -660,17 +594,17 @@ if inShort
     // Take Profit Parziali
     if usePartialTP and not shouldCloseAll
         // TP1 — chiusura parziale 40%
-        if not tp1_hit and close_tf <= tp1Price
+        if not tp1_hit and close <= tp1Price
             strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
             tp1_hit := true
 
         // TP1 Rebound Close — tp1_hit[1] evita conflitto sulla stessa barra del TP1
-        if useTP1ReboundClose and tp1_hit[1] and not tp2_hit and close_tf >= tp1Price
+        if useTP1ReboundClose and tp1_hit[1] and not tp2_hit and close >= tp1Price
             shouldCloseAll := true
             closeReason := "TP1 Rebound"
 
         // TP2 - chiude tutta la posizione rimanente
-        if not tp2_hit and tp1_hit[1] and close_tf <= tp2Price
+        if not tp2_hit and tp1_hit[1] and close <= tp2Price
             shouldCloseAll := true
             closeReason := "TP2"
 
@@ -721,8 +655,7 @@ plot(useFP and not na(fpVAH) ? fpVAH : na, "FP VAH", color=color.new(color.purpl
 plot(useFP and not na(fpVAL) ? fpVAL : na, "FP VAL", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
 
 // Entry signals
-plotshape(shortStandard and not inShort and not shortPanic, "SHORT STD", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.normal)
-plotshape(shortPanic and not inShort, "SHORT PANIC", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
+plotshape(shortOK and not inShort, "SHORT PANIC", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
 
 // Exit signals
 plotshape(exit_bar and not emergencyExit, "COVER", shape.triangleup, location.belowbar, color.new(color.lime, 0), size=size.normal)
@@ -745,17 +678,17 @@ lblSize = labelSize == "tiny" ? size.tiny : (labelSize == "small" ? size.small :
 if showLabels
     // Entry label (sopra le candele con offset)
     if shortOK and not inShort
-        modeText = shortPanic ? "PANIC" : (isBearMarket ? "BEAR" : "STD")
-        labelColor = shortPanic ? color.orange : color.red
+        modeText = "PANIC"
+        labelColor = color.orange
 
         // Testo compatto o completo
         entryText = compactLabels ?
-             "SHORT " + modeText + "\n" + str.tostring(close_tf, "#.##") :
-             "SHORT " + modeText + "\nEntry: " + str.tostring(close_tf, "#.##") +
+             "SHORT " + modeText + "\n" + str.tostring(close, "#.##") :
+             "SHORT " + modeText + "\nEntry: " + str.tostring(close, "#.##") +
                   "\nSL: " + str.tostring(stopPrice, "#.##") +
                   "\nTP2: " + str.tostring(tp2Price, "#.##")
 
-        label.new(bar_index, high_tf + labelOffset,
+        label.new(bar_index, high + labelOffset,
              text=entryText,
              style=label.style_label_down,
              color=labelColor,
@@ -764,17 +697,17 @@ if showLabels
 
     // Exit label (sotto le candele con offset)
     if exit_bar
-        profitPct = ((entryPrice - close_tf) / entryPrice) * 100
+        profitPct = ((entryPrice - close) / entryPrice) * 100
         profitColor = profitPct > 0 ? color.green : color.red
         exitType = emergencyExit ? "EXIT!" : "Cover"
 
         // Testo compatto o completo
         exitText = compactLabels ?
              exitType + " " + str.tostring(profitPct, "#.#") + "%" :
-             exitType + "\n" + str.tostring(close_tf, "#.##") +
+             exitType + "\n" + str.tostring(close, "#.##") +
                   "\nP&L: " + str.tostring(profitPct, "#.##") + "%"
 
-        label.new(bar_index, low_tf - labelOffset,
+        label.new(bar_index, low - labelOffset,
              text=exitText,
              style=label.style_label_up,
              color=profitColor,
@@ -784,14 +717,14 @@ if showLabels
 // TP hit labels - solo se non compatte
 if showLabels and not compactLabels and inShort
     if tp1_hit and not tp1_hit[1]
-        label.new(bar_index, low_tf - labelOffset * 0.5,
+        label.new(bar_index, low - labelOffset * 0.5,
              text="TP1",
              style=label.style_label_up,
              color=color.new(color.green, 30),
              textcolor=color.white,
              size=size.tiny)
     if tp2_hit and not tp2_hit[1]
-        label.new(bar_index, low_tf - labelOffset * 0.5,
+        label.new(bar_index, low - labelOffset * 0.5,
              text="TP2",
              style=label.style_label_up,
              color=color.new(color.green, 20),
@@ -897,12 +830,12 @@ if showDashboard
     // Colori sezione
     hdrBg     = color.new(color.purple, 50)
     sectMkt   = color.new(#1a1a2e, 0)
-    sectRisk  = color.new(#1a1a1a, 0)
+
     sectPos   = color.new(#0d1b2a, 0)
     rowBg     = color.new(color.black, 90)
 
     // ── HEADER ──  (row 0)
-    tfLabel = is15m ? "15m" : (is30m ? "30m" : (is45m ? "45m" : (tf == "60" ? "1H" : (tf == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : tf))))))
+    tfLabel = is15m ? "15m" : (is30m ? "30m" : (is45m ? "45m" : (timeframe.period == "60" ? "1H" : (timeframe.period == "120" ? "2H" : (is4H ? "4H" : (isDaily ? "1D" : timeframe.period))))))
     statusDot = inShort ? "SHORT" : (shortOK ? "READY" : "IDLE")
     statusCol = inShort ? color.red : (shortOK ? color.lime : color.gray)
     table.cell(dashboard, 0, 0, "PANIC HUNTER", text_color=color.white, text_size=size.normal, bgcolor=hdrBg)
@@ -910,12 +843,11 @@ if showDashboard
     table.cell(dashboard, 2, 0, tfLabel + " " + statusDot, text_color=statusCol, text_size=size.normal, bgcolor=hdrBg)
 
     // ── STATUS BAR: filtri rapidi con indicatori ──  (row 1)
-    fBear = bearOK ? "B" : "b"
     fVol  = volOK ? "V" : "v"
     fLat  = latOK ? "L" : "l"
     fSess = sessionOK ? "S" : "s"
-    filterBar = fBear + " " + fVol + " " + fLat + " " + fSess
-    allFiltersOK = bearOK and volOK and latOK and sessionOK
+    filterBar = fVol + " " + fLat + " " + fSess
+    allFiltersOK = volOK and latOK and sessionOK
     table.cell(dashboard, 0, 1, "Filtri", text_color=color.gray, text_size=size.tiny, bgcolor=sectMkt)
     table.cell(dashboard, 1, 1, filterBar, text_color=allFiltersOK ? color.lime : color.orange, text_size=size.small, bgcolor=sectMkt)
     table.cell(dashboard, 2, 1, allFiltersOK ? "ALL OK" : "BLOCK", text_color=allFiltersOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectMkt)
@@ -951,15 +883,14 @@ if showDashboard
     table.cell(dashboard, 1, 5, str.tostring(rsi, "#.#"), text_color=rsiColor, text_size=size.small, bgcolor=rowBg)
     table.cell(dashboard, 2, 5, volText, text_color=volColor, text_size=size.small, bgcolor=rowBg)
 
-    // WT + TEMA + Direction Score (row 6)
+    // WT + TEMA (row 6)
     wtText = wtDown ? "BEAR" : "BULL"
     wtColor = wtDown ? color.red : color.green
     temaText = isTemaFalling ? "FALL" : "RISE"
     temaColor = isTemaFalling ? color.red : color.green
-    dirScoreColor = dirScore >= 2 ? color.green : (dirScore >= 1 ? color.orange : color.red)
     table.cell(dashboard, 0, 6, "WT / TEMA", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, 6, wtText + " / " + temaText, text_color=dirScore >= 2 ? color.green : color.orange, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 6, "Dir " + str.tostring(dirScore) + "/3", text_color=dirScoreColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 1, 6, wtText, text_color=wtColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 6, temaText, text_color=temaColor, text_size=size.small, bgcolor=rowBg)
 
     // Vol Density (row 7) — NEW
     vdText = str.tostring(volDensity, "#.##")
@@ -1028,109 +959,83 @@ if showDashboard
             table.cell(dashboard, 1, 12 + fpOffset, "", bgcolor=rowBg)
             table.cell(dashboard, 2, 12 + fpOffset, "", bgcolor=rowBg)
 
-    // Base row per sezioni da RISK in poi
+    // Base row per sezioni successive
     int r = 8 + fpOffset + rsOffset
 
-    // ── SEZIONE RISK ──  (row r)
-    table.cell(dashboard, 0, r, "RISK", text_color=color.white, text_size=size.tiny, bgcolor=sectRisk)
-    table.cell(dashboard, 1, r, "", bgcolor=sectRisk)
-    table.cell(dashboard, 2, r, "", bgcolor=sectRisk)
-
-    table.cell(dashboard, 0, r + 1, "", bgcolor=rowBg)
-    table.cell(dashboard, 1, r + 1, "", bgcolor=rowBg)
-    table.cell(dashboard, 2, r + 1, "", bgcolor=rowBg)
-
-    // Session (row r+2, solo su 4H)
+    // Session (solo su 4H)
     if is4H
         sessText = inActiveSession ? "ACTIVE" : "PAUSED"
         sessColor = inActiveSession ? color.green : color.orange
-        table.cell(dashboard, 0, r + 2, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 2, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 2, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, r, "Session", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, r, str.tostring(sessionStart) + "-" + str.tostring(sessionEnd) + " UTC", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, r, sessText, text_color=sessColor, text_size=size.small, bgcolor=rowBg)
 
-    // ── SEZIONE POSIZIONE / SEGNALI ──  (row r+3)
+    // Offset sessione
+    int sessOffset = is4H ? 1 : 0
+
+    // ── SEZIONE POSIZIONE / SEGNALI ──
+    int s = r + sessOffset
     posHdrBg = inShort ? color.new(color.red, 60) : color.new(color.teal, 70)
     posHdrText = inShort ? "POSIZIONE SHORT" : "IN ATTESA"
-    table.cell(dashboard, 0, r + 3, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
-    table.cell(dashboard, 1, r + 3, "", bgcolor=posHdrBg)
-    table.cell(dashboard, 2, r + 3, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 0, s, posHdrText, text_color=color.white, text_size=size.tiny, bgcolor=posHdrBg)
+    table.cell(dashboard, 1, s, "", bgcolor=posHdrBg)
+    table.cell(dashboard, 2, s, "", bgcolor=posHdrBg)
 
-    // TP Mult + Stop Type (row r+4)
+    // TP Mult + Stop Type
     activeRegimeMult = inShort and not na(entryRegimeMult) ? entryRegimeMult : regimeMult
     regimeMultText = str.tostring(activeRegimeMult, "#.#") + "x"
     regimeMultColor = activeRegimeMult > 1.0 ? color.orange : color.white
-    stopTypeText = useStructStop ? "STRUCT" : (isPanicMode ? "PANIC" : "STD")
+    stopTypeText = useStructStop ? "STRUCT" : "STD"
     stopTypeColor = useStructStop ? color.orange : color.white
-    table.cell(dashboard, 0, r + 4, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-    table.cell(dashboard, 1, r + 4, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, r + 4, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 0, s + 1, "TP Mult/SL", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 1, s + 1, "TP: " + regimeMultText, text_color=regimeMultColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, s + 1, "SL: " + stopTypeText, text_color=stopTypeColor, text_size=size.small, bgcolor=rowBg)
 
     if inShort
-        // Entry + P&L (row r+5)
+        // Entry + P&L
         pnlColor = currentProfit > 0 ? color.green : color.red
         pnlBg = currentProfit > tp1_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
-        table.cell(dashboard, 0, r + 5, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
-        table.cell(dashboard, 1, r + 5, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
-        table.cell(dashboard, 2, r + 5, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 0, s + 2, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
+        table.cell(dashboard, 1, s + 2, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
+        table.cell(dashboard, 2, s + 2, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
 
-        // SL + TP status (row r+6)
+        // SL + TP status
         tpStatus = tp2_hit ? "TP2 HIT" : (tp1_hit ? "TP1 HIT" : "RUNNING")
         tpStatusColor = tp2_hit ? color.green : (tp1_hit ? color.lime : color.white)
-        slTypeText = not tp1_hit and useMCcap and not na(stopCap) and not na(trailStop) and math.abs(trailStop - stopCap) < 0.01 ? "CAP" : (useStructStop ? "STRUCT" : "STD")
+        slTypeText = useStructStop ? "STRUCT" : "STD"
         beActiveText = useBreakevenAfterTP1 and tp1_hit ? " BE" : ""
         trailStatusText = not useTrailingStop ? "NO TRAIL" : (trailActive ? "TRAIL " + str.tostring(effectiveTrailATR, "#.#") + "x" + beActiveText : "WAIT " + slTypeText)
         trailStatusColor = not useTrailingStop ? color.gray : (trailActive ? color.lime : color.orange)
-        table.cell(dashboard, 0, r + 6, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 6, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 6, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, s + 3, "SL / Trail", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, s + 3, str.tostring(stopPrice, "#.##") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, s + 3, tpStatus, text_color=tpStatusColor, text_size=size.small, bgcolor=rowBg)
 
-        // Exit score (row r+7)
+        // Exit score
         exitPct = exitThreshold > 0 ? math.min(exitScore / exitThreshold * 100, 100) : 0
         exitSbTag = isStrongBear ? " (SB)" : ""
         exitBarText = exitScore >= exitThreshold ? "EXIT!" : str.tostring(exitScore, "#.#") + "/" + str.tostring(exitThreshold, "#.#") + exitSbTag
         exitBg = exitScore >= exitThreshold ? color.new(color.orange, 70) : rowBg
-        table.cell(dashboard, 0, r + 7, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
-        table.cell(dashboard, 1, r + 7, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
-        table.cell(dashboard, 2, r + 7, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 0, s + 4, "Exit Score", text_color=color.gray, text_size=size.tiny, bgcolor=exitBg)
+        table.cell(dashboard, 1, s + 4, exitBarText, text_color=exitScore >= exitThreshold ? color.orange : color.white, text_size=size.small, bgcolor=exitBg)
+        table.cell(dashboard, 2, s + 4, str.tostring(exitPct, "#") + "%", text_color=exitScore >= exitThreshold * 0.7 ? color.orange : color.gray, text_size=size.small, bgcolor=exitBg)
 
-        // TP levels (row r+8)
-        table.cell(dashboard, 0, r + 8, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 8, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 8, tpStatus, text_color=tpStatusColor, text_size=size.tiny, bgcolor=rowBg)
+        // TP levels
+        table.cell(dashboard, 0, s + 5, "TP Levels", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, s + 5, str.tostring(tp1Price, "#.#") + " / " + str.tostring(tp2Price, "#.#"), text_color=color.new(color.lime, 30), text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 2, s + 5, tpStatus, text_color=tpStatusColor, text_size=size.tiny, bgcolor=rowBg)
     else
-        // Signal readiness (row r+5)
+        // Signal readiness
         signalText = shortOK ? "READY!" : "WAITING"
         signalColor = shortOK ? color.lime : color.gray
-        capPreviewText = useMCcap ? "Cap ~" + str.tostring(open_tf + atr14 * mcCapATRmult, "#.#") : ""
-        table.cell(dashboard, 0, r + 5, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 5, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 5, capPreviewText, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-
-        // Entry checklist: red bars (row r+6)
-        redBarsText = str.tostring(redBarsCount) + "/" + str.tostring(bearMinRedBars)
-        redBarsColor = hasEnoughRedBars ? color.green : color.gray
-        table.cell(dashboard, 0, r + 6, "Red Bars", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 6, redBarsText, text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 6, hasEnoughRedBars ? "OK" : "--", text_color=redBarsColor, text_size=size.small, bgcolor=rowBg)
-
-        // Fear requirement (row r+7)
-        fearReqLabel = isStrongBear ? "Fear(SB)" : "Fear Req"
-        table.cell(dashboard, 0, r + 7, fearReqLabel, text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        table.cell(dashboard, 1, r + 7, str.tostring(fearIndex, "#.#") + " / " + str.tostring(activeBearMinFear, "#.#"), text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 7, fearOK_bear ? "OK" : "--", text_color=fearOK_bear ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-
-        // Distance ATR (row r+8)
-        table.cell(dashboard, 0, r + 8, "Dist ATR", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
-        distATROK = distATR >= 0 and distATR <= maxDistATR
-        table.cell(dashboard, 1, r + 8, str.tostring(distATR, "#.#") + " / " + str.tostring(maxDistATR, "#.#"), text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
-        table.cell(dashboard, 2, r + 8, distATROK ? "OK" : "--", text_color=distATROK ? color.green : color.gray, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 0, s + 2, "Signal", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+        table.cell(dashboard, 1, s + 2, signalText, text_color=signalColor, text_size=size.small, bgcolor=rowBg)
+        table.cell(dashboard, 2, s + 2, "", bgcolor=rowBg)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALERTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-alertcondition(shortPanic and not inShort, title="PANIC SHORT Signal", message="PANIC SHORT Signal detected! High fear conditions present.")
-alertcondition(shortStandard and not inShort, title="Standard SHORT Signal", message="Standard SHORT signal detected in bear market.")
+alertcondition(shortOK and not inShort, title="PANIC SHORT Signal", message="PANIC SHORT Signal detected! High fear conditions present.")
 alertcondition(emergencyExit, title="Emergency Exit", message="EMERGENCY EXIT triggered - Strong bounce detected!")
 alertcondition(isPanicMode and not isPanicMode[1], title="Panic Mode Activated", message="Market entering PANIC MODE - High volatility and fear detected!")
 // Regime Shift alert
