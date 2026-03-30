@@ -470,13 +470,16 @@ var int lastExitBar = 0
 var bool lastTradeWasProfit = false
 var float lastExitProfit = 0.0
 
-// Aggiorna lastExitBar quando usciamo da posizione
+// Aggiorna lastExitBar quando usciamo da posizione + reset flags
 if inShort[1] and not inShort
     lastExitBar := bar_index
     // FIX 6: entryPrice potrebbe essere na al primo trade o dopo reset → guard esplicita
     if not na(entryPrice) and entryPrice != 0
         lastExitProfit    := (entryPrice - close_tf) / entryPrice
         lastTradeWasProfit := lastExitProfit > 0
+    // Reset TP flags quando la posizione si chiude effettivamente
+    tp1_hit := false
+    tp2_hit := false
 
 // Cooldown intelligente: ridotto dopo trade profittevole se il trend continua
 barsSinceExit = bar_index - lastExitBar
