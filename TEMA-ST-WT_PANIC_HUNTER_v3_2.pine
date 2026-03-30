@@ -658,46 +658,51 @@ float regimeShiftScore = math.max(0, math.min(100, rssSTup + rssPanicDown + rssF
 // EXECUTE EXITS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Determina se bisogna chiudere tutto (calcolato PRIMA di piazzare ordini)
+bool shouldCloseAll = false
+string closeReason = ""
+
 if inShort
+    // Signal-based exit - calcolato prima
+    if exit_bar
+        if emergencyExit
+            shouldCloseAll := true
+            closeReason := "EMERGENCY"
+        else if not usePartialTP or tp1_hit
+            shouldCloseAll := true
+            closeReason := "Cover"
+
     // Take Profit Parziali
-    if usePartialTP
-        // TP1
+    if usePartialTP and not shouldCloseAll
+        // TP1 — chiusura parziale 40%
         if not tp1_hit and close_tf <= tp1Price
             strategy.close("Short", comment="TP1", qty_percent=tp1_size * 100)
             tp1_hit := true
 
         // TP1 Rebound Close — tp1_hit[1] evita conflitto sulla stessa barra del TP1
         if useTP1ReboundClose and tp1_hit[1] and not tp2_hit and close_tf >= tp1Price
-            strategy.cancel_all()
-            strategy.close_all(comment="TP1 Rebound")
-            tp2_hit := true
+            shouldCloseAll := true
+            closeReason := "TP1 Rebound"
 
         // TP2 - chiude tutta la posizione rimanente
         if not tp2_hit and tp1_hit[1] and close_tf <= tp2Price
-            strategy.cancel_all()
-            strategy.close_all(comment="TP2")
-            tp2_hit := true
+            shouldCloseAll := true
+            closeReason := "TP2"
 
-        // SL attivo solo se la posizione non è stata chiusa dai TP
-        if not tp2_hit
-            strategy.exit("SL", from_entry="Short", stop=stopPrice)
-    else
-        // Single TP/SL
-        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
-
-    // Forza chiusura: se tp2_hit è true ma siamo ancora in posizione, chiudi ogni barra
-    if tp2_hit
+    // CHIUSURA TOTALE: un unico punto di uscita, nessun conflitto
+    if shouldCloseAll
         strategy.cancel_all()
-        strategy.close_all(comment="Force Close")
-
-    // Signal-based exit - emergency esce sempre, cover solo se TP1 già colpito o TP disabilitati
-    if exit_bar
-        if emergencyExit
-            strategy.cancel_all()
-            strategy.close_all(comment="EMERGENCY")
-        else if not usePartialTP or tp1_hit
-            strategy.cancel_all()
-            strategy.close_all(comment="Cover")
+        strategy.close("Short", comment=closeReason)
+        tp2_hit := true
+    else if usePartialTP and not tp2_hit
+        // SL attivo SOLO se non stiamo chiudendo
+        strategy.exit("SL", from_entry="Short", stop=stopPrice)
+    else if not usePartialTP
+        strategy.exit("SL/TP", from_entry="Short", stop=stopPrice, limit=tp2Price)
+    else if tp2_hit
+        // Failsafe: tp2_hit true ma ancora in posizione
+        strategy.cancel_all()
+        strategy.close("Short", comment="Force Close")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLOTS
