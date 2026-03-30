@@ -344,12 +344,28 @@ plot(useFP and not na(fpPocMid) ? fpPocMid : na, "FP POC", color=color.new(color
 plot(useFP and not na(fpVAH) ? fpVAH : na, "FP VAH", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
 plot(useFP and not na(fpVAL) ? fpVAL : na, "FP VAL", color=color.new(color.purple, 60), linewidth=1, style=plot.style_stepline)
 
-// Entry signal — plotshape con testo (si muove col grafico, nessun limite label)
-plotshape(shortSignal, "SHORT ENTRY", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large, text="SHORT", textcolor=color.orange)
+// Entry signal
+plotshape(shortSignal, "SHORT ENTRY", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.large)
 
 // Panic indicators
 plotshape(showPanicZones and isPanicBar, "Panic Bar", shape.circle, location.belowbar, color.new(color.orange, 0), size=size.tiny)
 plotshape(showPanicZones and isVolSpike, "Vol Spike", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+labelOffset = atr14 * 3.0
+lblSize = size.small
+
+if shortSignal
+    entryText = "SHORT PANIC\n" + str.tostring(close, "#.##") + "\nScore: " + str.tostring(panicScore)
+    label.new(bar_index, high + labelOffset,
+         text=entryText,
+         style=label.style_label_down,
+         color=color.orange,
+         textcolor=color.white,
+         size=lblSize)
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
