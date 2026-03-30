@@ -92,7 +92,7 @@ useBearMode = input.bool(false, "Abilita SHORT BEAR mode", group=grpBearMode)
 bearMinFear = input.float(3.0, "Fear Index minimo per BEAR %", minval=0, maxval=50, step=1, group=grpBearMode, tooltip="BEAR richiede almeno questo livello di paura. Fear Index ora scala 0-100")
 bearMinFearReduced = input.float(7.0, "Fear Ridotto in Strong Bear %", minval=0, maxval=50, step=0.5, group=grpBearMode, tooltip="Fear Index minimo quando isStrongBear è attivo. Valore ridotto per bear strutturale")
 bearMinRedBars = input.int(1, "Candele rosse consecutive minime", minval=1, maxval=5, group=grpBearMode)
-cooldownBars = input.int(8, "Cooldown tra trade (barre)", minval=0, maxval=20, group=grpBearMode, tooltip="Barre minime tra un'uscita e una nuova entry")
+
 strongBearExitBonus = input.float(2.5, "Exit Threshold Bonus Strong Bear", minval=0.0, maxval=4.0, step=0.5, group=grpBearMode, tooltip="Aggiunto alla soglia exit in Strong Bear per evitare uscite premature su rimbalzi tecnici")
 rsiExitLevelBear = input.int(65, "RSI Exit Level Strong Bear", minval=55, maxval=75, group=grpBearMode, tooltip="RSI minimo per segnale exit in Strong Bear. Più alto = lascia correre più a lungo")
 emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65, maxval=80, group=grpBearMode, tooltip="RSI per emergency exit in Strong Bear. Più alto = protezione solo su rimbalzi veramente forti")
@@ -138,13 +138,12 @@ isHighTF = isDaily
 tfStopMult   = isDaily ? 1.4 : (is4H ? 1.0 : 1.2)  // SL più largo su 1D
 tfTrailMult  = isDaily ? 1.3 : (is4H ? 1.0 : 1.1)  // Trailing più largo su 1D
 tfPanicMult  = isDaily ? 1.5 : (is4H ? 1.0 : 1.2)  // Panic bar più significativa su 1D
-tfCooldownMult = isDaily ? 0.5 : (is4H ? 1.0 : 0.75)  // Meno cooldown su 1D (meno barre)
 
 // Parametri adattati
 adaptedStopNormal = stopPerc_normal * tfStopMult
 adaptedStopPanic  = stopPerc_panic * tfStopMult
 adaptedTrailATR   = trailATRmult * tfTrailMult
-adaptedCooldown   = math.round(cooldownBars * tfCooldownMult)
+
 adaptedPanicBarATR = panicBarATRmult * tfPanicMult
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -337,7 +336,7 @@ volOK = useVolumeFilter ? highVolume : true
 latOK = useLateralFilter ? not isLateral : true
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// POSITION VARIABLES (dichiarate prima per uso in cooldown/drawdown)
+// POSITION VARIABLES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var float entryPrice = na
@@ -352,27 +351,9 @@ var string entryMode = ""
 inShort = strategy.position_size < 0
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// COOLDOWN & BEAR MODE FILTERS
+// BEAR MODE FILTERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Track ultima uscita per cooldown e re-entry intelligente
-var int lastExitBar = 0
-var bool lastTradeWasProfit = false
-var float lastExitProfit = 0.0
-
-// Aggiorna lastExitBar quando usciamo da posizione
-if inShort[1] and not inShort
-    lastExitBar := bar_index
-    // FIX 6: entryPrice potrebbe essere na al primo trade o dopo reset → guard esplicita
-    if not na(entryPrice) and entryPrice != 0
-        lastExitProfit    := (entryPrice - close_tf) / entryPrice
-        lastTradeWasProfit := lastExitProfit > 0
-
-// Cooldown intelligente: ridotto dopo trade profittevole se il trend continua
-barsSinceExit = bar_index - lastExitBar
-// Se l'ultimo trade era in profitto E il trend continua a scendere, cooldown dimezzato
-smartCooldown = lastTradeWasProfit and isTemaFalling and (trend_in == -1) ? math.round(adaptedCooldown * 0.5) : adaptedCooldown
-cooldownOK = barsSinceExit >= smartCooldown
 
 // Conta candele rosse consecutive (per BEAR mode)
 redBarsCount = 0
@@ -447,11 +428,11 @@ directionOK = dirScore >= 2  // 2/3 bastano, non servono tutti e 3
 // FIX 5: distATR < 0 significa prezzo SOPRA la TEMA → la condizione <=maxDistATR era sempre vera
 //         Aggiunto distATR >= 0: si entra solo se il prezzo è sotto la TEMA (distanza positiva)
 shortBearConditions = directionOK and (distATR >= 0 and distATR <= maxDistATR) and latOK and volOK and bearOK and sessionOK
-shortBearFilters = hasEnoughRedBars and fearOK_bear and cooldownOK
+shortBearFilters = hasEnoughRedBars and fearOK_bear
 shortStandard = useBearMode and shortBearConditions and shortBearFilters
 
-// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri, ma rispetta cooldown e drawdown)
-shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike and cooldownOK
+// CONDIZIONE SHORT PANIC (più aggressiva - ignora alcuni filtri, ma rispetta drawdown)
+shortPanic = isPanicMode and (trend_in == -1 or isPanicBar) and (wtDown or isRsiPanic) and isVolSpike
 
 // CONDIZIONE SHORT FINALE
 shortOK = shortStandard or shortPanic
@@ -737,9 +718,8 @@ if showDashboard
     fLat  = latOK ? "L" : "l"
     fSess = sessionOK ? "S" : "s"
     fDD   = drawdownOK ? "D" : "d"
-    fCool = cooldownOK ? "C" : "c"
-    filterBar = fBear + " " + fVol + " " + fLat + " " + fSess + " " + fDD + " " + fCool
-    allFiltersOK = bearOK and volOK and latOK and sessionOK and drawdownOK and cooldownOK
+    filterBar = fBear + " " + fVol + " " + fLat + " " + fSess + " " + fDD
+    allFiltersOK = bearOK and volOK and latOK and sessionOK and drawdownOK
     table.cell(dashboard, 0, 1, "Filtri", text_color=color.gray, text_size=size.tiny, bgcolor=sectMkt)
     table.cell(dashboard, 1, 1, filterBar, text_color=allFiltersOK ? color.lime : color.orange, text_size=size.small, bgcolor=sectMkt)
     table.cell(dashboard, 2, 1, allFiltersOK ? "ALL OK" : "BLOCK", text_color=allFiltersOK ? color.lime : color.red, text_size=size.tiny, bgcolor=sectMkt)
@@ -806,16 +786,13 @@ if showDashboard
     table.cell(dashboard, 1, 9, str.tostring(dailyDrawdown * 100, "#.#") + "% / " + str.tostring(totalDrawdown * 100, "#.#") + "%", text_color=dailyDrawdown > maxDailyDrawdown * 0.5 ? color.orange : color.white, text_size=size.small, bgcolor=ddBg)
     table.cell(dashboard, 2, 9, ddText, text_color=ddColor, text_size=size.small, bgcolor=ddBg)
 
-    // Consecutive losses + Cooldown (row 10)
-    cooldownText = cooldownOK ? "OK" : str.tostring(math.max(0, smartCooldown - barsSinceExit)) + " bars"
-    cooldownColor = cooldownOK ? color.green : color.orange
-    // Se bloccato per loss consecutive, mostra timer reset
+    // Consecutive losses (row 10)
     lossText = str.tostring(consecutiveLosses) + "/" + str.tostring(maxConsecutiveLosses) + " loss"
     resetBarsLeft = consecutiveLosses >= maxConsecutiveLosses ? math.max(0, 20 - lossBlockBars) : 0
     resetText = resetBarsLeft > 0 ? " RST:" + str.tostring(resetBarsLeft) : ""
-    table.cell(dashboard, 0, 10, "Loss/Cool", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
+    table.cell(dashboard, 0, 10, "Losses", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
     table.cell(dashboard, 1, 10, lossText + resetText, text_color=consecutiveLosses >= maxConsecutiveLosses ? color.red : (consecutiveLosses >= maxConsecutiveLosses - 1 ? color.orange : color.white), text_size=size.small, bgcolor=rowBg)
-    table.cell(dashboard, 2, 10, cooldownText, text_color=cooldownColor, text_size=size.small, bgcolor=rowBg)
+    table.cell(dashboard, 2, 10, "", bgcolor=rowBg)
 
     // Session (row 11, solo su 4H)
     if is4H
