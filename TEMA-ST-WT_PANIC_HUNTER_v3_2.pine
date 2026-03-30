@@ -24,7 +24,7 @@ atr14 = request.security(syminfo.tickerid, tf, ta.atr(14))
 atr10 = request.security(syminfo.tickerid, tf, ta.atr(10))
 
 // — STRATEGY SETTINGS —
-strategy("TEMA-ST-WT PANIC HUNTER v3.4", overlay=true,
+strategy("TEMA-ST-WT PANIC HUNTER v3.5", overlay=true,
      initial_capital    = 100000,
      default_qty_type   = strategy.percent_of_equity,
      default_qty_value  = 100,
@@ -907,7 +907,7 @@ if showDashboard
     statusDot = inShort ? "SHORT" : (shortOK ? "READY" : "IDLE")
     statusCol = inShort ? color.red : (shortOK ? color.lime : color.gray)
     table.cell(dashboard, 0, 0, "PANIC HUNTER", text_color=color.white, text_size=size.normal, bgcolor=hdrBg)
-    table.cell(dashboard, 1, 0, "v3.4", text_color=color.new(color.white, 30), text_size=size.normal, bgcolor=hdrBg)
+    table.cell(dashboard, 1, 0, "v3.5", text_color=color.new(color.white, 30), text_size=size.normal, bgcolor=hdrBg)
     table.cell(dashboard, 2, 0, tfLabel + " " + statusDot, text_color=statusCol, text_size=size.normal, bgcolor=hdrBg)
 
     // ── STATUS BAR: filtri rapidi con indicatori ──  (row 1)
