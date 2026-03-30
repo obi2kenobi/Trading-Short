@@ -36,8 +36,8 @@ strategy("TEMA-ST-WT PANIC HUNTER v3.5", overlay=true,
 // ═══════════════════════════════════════════════════════════════════════════════
 
 grpRisk = "═══ RISK MANAGEMENT ═══"
-stopPerc_normal = input.float(2.0, "Stop Loss Normale %", minval=0.5, maxval=5.0, step=0.1, group=grpRisk) / 100
-stopPerc_panic = input.float(1.2, "Stop Loss Panic Mode %", minval=0.3, maxval=3.0, step=0.1, group=grpRisk) / 100
+stopPerc_normal = input.float(1.2, "Stop Loss %", minval=0.5, maxval=5.0, step=0.1, group=grpRisk) / 100
+maxHoldingBars = input.int(20, "Max Holding (barre)", minval=5, maxval=50, group=grpRisk, tooltip="Chiude la posizione dopo N barre se non ha raggiunto TP o SL")
 useTrailingStop = input.bool(true, "Usa Trailing Stop", group=grpRisk)
 trailATRmult = input.float(1.0, "Trailing Stop ATR Multiplier", minval=0.5, maxval=4.0, step=0.1, group=grpRisk)
 useStructuralStop = input.bool(true, "Stop Strutturale in Strong Bear", group=grpRisk, tooltip="In Strong Bear usa il massimo recente + buffer ATR invece dello stop % fisso")
@@ -52,8 +52,8 @@ emergencyExitRsiBear = input.int(72, "Emergency Exit RSI Strong Bear", minval=65
 
 grpTP = "═══ TAKE PROFIT ═══"
 useDynamicTP = input.bool(true, "TP Dinamico (basato su ATR)", group=grpTP, tooltip="Il TP si adatta alla volatilità corrente. Il valore % diventa fallback")
-tp1_perc_input = input.float(1.5, "TP %", minval=0.1, maxval=10.0, step=0.1, group=grpTP, tooltip="Take Profit % — fallback se TP dinamico è off") / 100
-tpATRmult = input.float(1.5, "TP ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP = entry - ATR * questo valore. Es: ATR 150pt * 1.5 = 225pt")
+tp1_perc_input = input.float(2.0, "TP %", minval=0.1, maxval=10.0, step=0.1, group=grpTP, tooltip="Take Profit % — fallback se TP dinamico è off") / 100
+tpATRmult = input.float(2.0, "TP ATR Multiplier", minval=0.5, maxval=6.0, step=0.1, group=grpTP, tooltip="TP = entry - ATR * questo valore")
 useRegimeTP = input.bool(true, "TP Adattivo al Regime", group=grpTP, tooltip="Scala il TP in base al regime di mercato e alla densità volumetrica")
 regimeTPmult_sbVoid = input.float(1.8, "TP Multiplier Strong Bear + Vol Void", minval=1.0, maxval=3.0, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear con vuoto volumetrico")
 regimeTPmult_sb = input.float(1.4, "TP Multiplier Strong Bear", minval=1.0, maxval=2.5, step=0.1, group=grpTP, tooltip="Moltiplicatore TP in Strong Bear")
@@ -129,8 +129,7 @@ tfTrailMult    = isDaily ? 1.3 : (is4H ? 1.0 : (isSubHourly ? 0.9 : 1.1))
 tfPanicMult    = isDaily ? 1.5 : (is4H ? 1.0 : (isSubHourly ? 0.8 : 1.2))
 
 // Parametri adattati
-adaptedStopNormal = stopPerc_normal * tfStopMult
-adaptedStopPanic  = stopPerc_panic * tfStopMult
+adaptedStop = stopPerc_normal * tfStopMult
 adaptedTrailATR   = trailATRmult * tfTrailMult
 adaptedPanicBarATR = panicBarATRmult * tfPanicMult
 
@@ -392,6 +391,7 @@ wtBullish = wt1_out > wt2_out
 var float entryPrice = na
 var float trailStop = na
 var float lowestSinceEntry = na
+var int entryBar = na
 
 inShort = strategy.position_size < 0
 
@@ -418,12 +418,13 @@ useStructStop = useStructuralStop and isStrongBear
 // Reset on new position
 if inShort and not inShort[1]
     entryPrice := strategy.position_avg_price
+    entryBar := bar_index
 
     // In Strong Bear usa stop strutturale, altrimenti stop % fisso
     if useStructStop
         trailStop := stopStrutturale
     else
-        trailStop := entryPrice * (1 + (isPanicMode ? adaptedStopPanic : adaptedStopNormal))
+        trailStop := entryPrice * (1 + adaptedStop)
     lowestSinceEntry := close
 
 // Update trailing stop
@@ -440,8 +441,7 @@ if inShort
             trailStop := newTrailStop
 
 // Calcolo livelli
-activeStopPerc = isPanicMode ? adaptedStopPanic : adaptedStopNormal
-stopPriceFallback = useStructStop ? stopStrutturale : entryPrice * (1 + activeStopPerc)
+stopPriceFallback = useStructStop ? stopStrutturale : entryPrice * (1 + adaptedStop)
 stopPrice = useTrailingStop ? trailStop : stopPriceFallback
 
 // TP dinamico: basato su ATR e regimeMult al momento dell'entry, o % fissa come fallback
@@ -511,13 +511,20 @@ float regimeShiftScore = math.max(0, math.min(100, rssSTup + rssPanicDown + rssF
 // EXECUTE EXITS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+barsInTrade = inShort and not na(entryBar) ? bar_index - entryBar : 0
+isTimeout = barsInTrade >= maxHoldingBars
+
 if inShort
-    // Signal-based exit (cover/emergency) — priorità su TP/SL
-    if exit_bar
+    if isTimeout
+        // Timeout: chiudi dopo N barre
+        strategy.cancel_all()
+        strategy.close("Short", comment="Timeout")
+    else if exit_bar
+        // Signal-based exit (cover/emergency)
         strategy.cancel_all()
         strategy.close("Short", comment=emergencyExit ? "EMERGENCY" : "Cover")
     else
-        // TP + SL via ordini limit/stop reali — eseguono al prezzo esatto, anche intrabar
+        // TP + SL via ordini limit/stop reali
         strategy.exit("TP/SL", from_entry="Short", stop=stopPrice, limit=tpPrice)
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -827,7 +834,7 @@ if showDashboard
     if inShort
         // Entry + P&L
         pnlColor = currentProfit > 0 ? color.green : color.red
-        pnlBg = currentProfit > tp_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStopNormal * 0.5 ? color.new(color.red, 85) : rowBg)
+        pnlBg = currentProfit > tp_perc ? color.new(color.green, 85) : (currentProfit < -adaptedStop * 0.5 ? color.new(color.red, 85) : rowBg)
         table.cell(dashboard, 0, s + 1, "Entry", text_color=color.gray, text_size=size.tiny, bgcolor=pnlBg)
         table.cell(dashboard, 1, s + 1, str.tostring(entryPrice, "#.##"), text_color=color.white, text_size=size.small, bgcolor=pnlBg)
         table.cell(dashboard, 2, s + 1, str.tostring(currentProfit * 100, "#.##") + "%", text_color=pnlColor, text_size=size.small, bgcolor=pnlBg)
@@ -838,7 +845,9 @@ if showDashboard
         trailStatusColor = not useTrailingStop ? color.gray : color.lime
         table.cell(dashboard, 0, s + 2, "Stop", text_color=color.gray, text_size=size.tiny, bgcolor=rowAlt)
         table.cell(dashboard, 1, s + 2, str.tostring(stopPrice, "#.#") + " " + trailStatusText, text_color=trailStatusColor, text_size=size.small, bgcolor=rowAlt)
-        table.cell(dashboard, 2, s + 2, slTypeText, text_color=useStructStop ? color.orange : color.white, text_size=size.small, bgcolor=rowAlt)
+        holdText = str.tostring(barsInTrade) + "/" + str.tostring(maxHoldingBars)
+        holdColor = barsInTrade >= maxHoldingBars - 2 ? color.orange : color.white
+        table.cell(dashboard, 2, s + 2, holdText, text_color=holdColor, text_size=size.small, bgcolor=rowAlt)
 
         // TP Levels
         table.cell(dashboard, 0, s + 3, "TP1/TP2", text_color=color.gray, text_size=size.tiny, bgcolor=rowBg)
