@@ -1,0 +1,6 @@
+# la-riga-di-default-e-il-caso-peggiore
+**Àncora**: REPO-S — `app/engine/src/rules.ts` (tabella per fascia interrogata senza la fascia) vs `app/web/src/Configurator.tsx:185` e `:1201` (`height_mm: 1994`, `min={1994}`) · **Nato**: 2026-09-03, da un reperto che stavo per declassare a caso limite
+
+Prima di declassare un difetto per **irraggiungibilità** («serve un input esotico», «nessun cliente lo farebbe»), si cerca dove vive quel valore nell'interfaccia. Qui il valore che innescava il travaso fra due cataloghi di lookup sembrava di laboratorio, e invece era il **default e il minimo** dello slider: non un caso limite, la **configurazione più comune**. Il difetto passava da «teorico» a «ogni ordine grande alla quota minima», con +36% di materiale e un flag di blocco che restava `false`. Il controllo costa un `grep` del valore nei componenti (default degli stati, `min=`/`max=`/`step=` dei controlli, valori seed): due minuti che spostano una P2 in P0 — o al contrario evitano di gonfiare una P2. Corollario: uno `step` che non aggancia i valori di catalogo rende il ramo «fuori catalogo» la **norma** invece dell'eccezione, e va misurato allo stesso modo.
+
+**Vedi anche**: `soglia-con-default-guardato` · `regola-provata-non-assunta` · `esegui-non-leggere`

@@ -1,0 +1,6 @@
+#!/bin/bash
+# commit-msg (git) — il messaggio di commit arriva SOLO qui ($1 = file col messaggio):
+# il pre-commit non lo conosce. (D10, test del sistema completo 2026-09-20: il controllo
+# «N test nel messaggio» viveva nel pre-commit con messaggio vuoto, e non girava mai.)
+# Attivazione: git config core.hooksPath .githooks (la fa install.sh).
+exec bash "$(cd "$(dirname "$0")/.." && pwd)/tools/pre-commit.sh" --commit-msg "$1"

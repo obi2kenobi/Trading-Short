@@ -1,0 +1,6 @@
+# trovare-non-e-fallire
+**Àncora**: REPO-A (REPO-A) — tools/riallinea-mirror.sh:trova (riga 109), applicata a verifica-caricamento.js e verifica-loglib.js · **Nato**: 2026-08-12 (eseguendo la pipeline per intero dopo 16 commit su tools/, la seconda volta che un giro end-to-end trova un difetto che quindici riletture non avevano visto)
+Uno strumento che esce 1 perché ha TROVATO qualcosa (24 certificati scaduti, un progetto che diverge) non è uno strumento fallito: è uno strumento che ha fatto il suo lavoro. La pipeline distingue tre categorie di uscita non-zero, non due: `opzionale()` (fallito per davvero, non blocca, il report resta quello vecchio), `trova()` (uscita 1 = ha lavorato ed è di questa run, riepilogato separatamente) e i gate hard di `step_verifica` (bloccano il commit). Confondere "trovato" con "fallito" produce due affermazioni false insieme: "lo step non ha girato" (aveva girato) e "il report è vecchio" (è nuovo). Eseguito dal vivo: `node tools/verifica-caricamento.js` sul mirror reale (91 progetti) → exit 0, nessun progetto fermo in questa istantanea — confermando che lo strumento gira e il ramo `trova` è cablato per il caso in cui smetta di essere 0.
+
+
+**Vedi anche**: `esegui-non-leggere`

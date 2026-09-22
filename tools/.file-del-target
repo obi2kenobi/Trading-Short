@@ -1,0 +1,64 @@
+# File-del-target: citati nell'hub ma creati NEI PROGETTI DI DESTINAZIONE
+# (il metodo li ordina, non li contiene). Unica fonte: la leggono
+# giri-ignoranti S10, tests/test-skills-structure e tools/pre-commit.
+# Nati ognuno da un falso positivo beccato sul campo.
+CATALOGO_ENDPOINT_BC.md
+docs/GRAMMATICA_DOMINIO.md
+FORK-STATO.md
+Test.js
+appsscript.json
+ValuationConfig.js
+gas/Sp.js
+tools/test-sp.js
+PRESIDI.md
+loops/2026-09-01-giri-miglioramento.md
+# REPO-E: le 30 guardie difensive non presidiate (setaccio-guardie.sh vive nel progetto, non nell'hub)
+tools/setaccio-guardie.sh
+
+# REPO-V: il tool dal nome mendace citato dalla regola 5 del 7/9 (vive lì, non qui)
+bc_index.py
+# REPO-V: cancello e lente dei moduli citati dal report del 7/9 (vivono lì)
+tools/cancello.sh
+test-moduli-coperti.sh
+
+# file di campo citati con :riga nei report (la verifica spetta alle loro repo)
+InventoryModels.gs
+tools/cancello-prima-del-commit-hook.sh
+Dashboard.html
+WebAppDashboard.gs
+App.html
+# REPO-V: pattern e lente citati dal report della settimana contata (vivono lì)
+patterns/sabotaggio-plausibile.md
+test-citazioni-vere.sh
+# file di campo citati dalle skill (vivono nelle repo di destinazione)
+FORK-STATO.md
+CATALOGO_ENDPOINT_BC.md
+docs/GRAMMATICA_DOMINIO.md
+tools/grafo-findings.js
+
+# file di SD_Web_Dashboard citati col :riga dal dossier del 28/8 (vivono lì)
+ApiEndpoints.gs
+BCApiClient.gs
+BCLogger.gs
+BCSetup.gs
+BCSync.gs
+CacheManager.gs
+Config.gs
+Database.gs
+EmailService.gs
+ErrorHandler.gs
+HST_Parser.js
+OrderService.gs
+Scripts.html
+StoricoModifiche.gs
+Styles.html
+TEST_INTEGRATION_SAFE.gs
+Tests.gs
+Utils.gs
+Validators.gs
+WebApp.gs
+dashboard.html
+diagnosticAddress.gs
+# file di REPO-W citati nei report e nel canone (vivono lì, non qui)
+tools/gate.sh
+bc_sandbox.py

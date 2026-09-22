@@ -1,0 +1,4 @@
+#!/bin/bash
+# pre-commit (git) — delega a tools/pre-commit.sh, che fa i controlli veri.
+# Attivazione: git config core.hooksPath .githooks (la fa install.sh).
+exec bash "$(cd "$(dirname "$0")/.." && pwd)/tools/pre-commit.sh" ""

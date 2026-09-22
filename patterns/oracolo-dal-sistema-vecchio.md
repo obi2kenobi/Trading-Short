@@ -1,0 +1,6 @@
+# oracolo-dal-sistema-vecchio
+**Àncora**: REPO-S — banco headless del sistema legacy (`tools/motore-test/harness.php` + fixtures, invocato per riprodurre la distinta reale) e i documenti di validazione che ne derivano · **Nato**: 2026-09-03, censendo perché quel progetto riesce a riscrivere un motore di calcolo senza inventare una regola
+
+Quando si riscrive un sistema che ha un **predecessore in produzione**, l'oracolo indipendente non va costruito a tavolino: **è il vecchio**, reso eseguibile headless (un harness + fixture reali, senza DB e senza UI) e interrogabile a comando. Da lì nascono due cose distinte che vanno tenute separate: le **regole validate** (diventano requisito del nuovo) e i **bug del vecchio** (diventano requisito *negativo*: il nuovo deve fare diverso, e si annota perché). Il valore non è il confronto una volta: è che ogni dubbio futuro su una formula ha una risposta **eseguibile** invece di una discussione. Limite dichiarato: un oracolo così è autorevole sul *comportamento*, non sulla *correttezza* — dove il vecchio sbaglia, serve l'autorità di dominio (`autorita-di-dominio-batte-oracolo`).
+
+**Vedi anche**: `oracolo-indipendente` · `autorita-di-dominio-batte-oracolo` · `regola-provata-non-assunta` · `banco-progetto-locale`
