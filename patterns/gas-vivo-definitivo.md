@@ -1,0 +1,5 @@
+# gas-vivo-definitivo
+**Àncora**: .claude/skills/allineamento-fork/SKILL.md (regola 1) · **Nato**: 2026-08-29 (dal problema di Luca: il lavoro sulle copie disallineate)
+IL GAS VIVO IN PRODUZIONE È L'ELEMENTO DEFINITIVO, MAI UN'IPOTESI. Quando due copie di un progetto discordano (repo, fork, mirror gas-src), vince il vivo — e il vivo si LEGGE (clasp clone/pull in una cartella fresca), non si ricorda, non si deduce, non si immagina. «Dovrebbe essere così» è la frase vietata. Il corollario che chiude il fallimento ricorrente: l'allineamento si decide PRIMA delle modifiche (tabella M4 della skill), mai dopo — modifiche sopra una copia indietro sono lavoro da rimescolare. Se il vivo non è leggibile: DEGRADATO dichiarato per iscritto, ogni conclusione sul vivo resta ipotesi (l'onore del NON VERIFICATO applicato alle copie).
+
+**Vedi anche**: `regola-provata-non-assunta` · `misura-la-deriva-prima-di-assumerla` · `estensione-testata-non-distruttiva` · `clasp-push-non-e-produzione` · `vivo-gia-in-git` (il test binario che lo rende eseguibile: hash-object + cat-file prima del push)

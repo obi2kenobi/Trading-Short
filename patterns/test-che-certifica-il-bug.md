@@ -1,0 +1,6 @@
+# test-che-certifica-il-bug
+**Àncora**: REPO-S — `api/src/routes/orders.test.ts` asseriva `where: { idempotencyKey }` **senza** il tenant, cioè esattamente la query che rendeva possibile leggere l'ordine di un altro cliente · **Nato**: 2026-09-03, correggendo quel difetto
+
+Un test può **fissare il comportamento sbagliato**: asserisce la forma esatta della query difettosa, e il giorno in cui qualcuno corregge il codice il test diventa **rosso**. Il pericolo non è il rosso — è la reazione: «il fix ha rotto un test, quindi il fix è sbagliato» → si ripristina il bug, con la suite verde a certificarlo. Quando un fix fa cadere un test, la prima domanda è **quale dei due ha ragione**, e la risposta si legge nel test, non nel codice. Qui il test è stato **aggiornato** e affiancato da uno che guarda il `where` reale (col tenant): senza quel secondo test il fix sarebbe stato "verde" contro un presidio che descriveva il difetto. Sintomo da cercare in revisione: asserzioni che replicano la **forma interna** di una query/chiamata invece del suo **effetto** — sono le più facili da scrivere e le più facili da trasformare in un lucchetto sul bug.
+
+**Vedi anche**: `lo-stub-che-mente-al-rovescio` · `citazione-non-presidio` · `oracolo-indipendente` · `esegui-non-leggere`

@@ -1,0 +1,6 @@
+# segreto-come-impronta
+**Àncora**: REPO-A (REPO-A) — tools/maschera-segreti.js:mascheraSegreti (riga 24) · **Nato**: 2026-08-11 (lo strumento che verifica i rilievi degli agenti ha stampato un client_secret in chiaro in una trascrizione)
+Due regole sembrano in conflitto e non lo sono: "una lettura di verifica stampa il caso INTERO o niente" contro "un rapporto non stampa mai la cosa da proteggere". Si conciliano sostituendo, non omettendo: ogni forma di segreto riconosciuta (stesso elenco di `segreti-parco.js`, non duplicato) viene rimpiazzata da `«segreto <impronta> · <N> caratteri»` — chi legge vede che lì c'era un segreto, quale forma, quanto era lungo, senza mai portarselo in un terminale, un log o una chat. Rilevante per questo stesso sistema: il banco avversariale del morning-gate esegue comandi generati da LLM che potrebbero leggere segreti locali (gh token, credenziali BC) — oggi quell'output finisce nel report senza questa maschera. Verificato sul codice: la funzione riusa `FORME`/`impronta` da `segreti-parco.js` invece di duplicare l'elenco delle forme (la ragione esplicita: "due elenchi divergerebbero, e il giorno in cui diverge nessuno se ne accorge").
+
+
+**Vedi anche**: `verdetto-sempre-visibile` · `allowlist-per-segmento`
