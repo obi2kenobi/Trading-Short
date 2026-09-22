@@ -1,2 +1,4 @@
 .campo-rem
 .mirror-boundaries
+__pycache__/
+*.pyc
