@@ -1,2 +1,3 @@
-# Verifiche dichiarate del turno di notte (una riga per comando, eseguite dal morning-gate).
-# VUOTO = il gate lo dice. Dichiara i comandi appena puoi.
+# Verifiche del turno (adattate al tipo di progetto da adatta-night-verify.sh)
+# GAS: 0 file · PY: 7 file · JS: 1 file · HTML: 0 file
+bash tools/py-gate.sh
