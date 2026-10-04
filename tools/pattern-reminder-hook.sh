@@ -4,7 +4,10 @@
 # dipendeva dalla memoria dell'agente in quel turno, non da un meccanismo del sistema.
 # Quando il file_path toccato matcha una categoria sensibile (auth/secret/credential/
 # token/login/password, incluse le varianti italiane), stampa un reminder con le righe
-# pertinenti del registro patterns/README.md — non blocca mai l'operazione (allow sempre).
+# pertinenti del registro patterns/README.md — non blocca mai l'operazione, e non la approva:
+# (2026-09-23, sì di Luca) rispondeva permissionDecision "allow", che in Claude Code SALTA la
+# richiesta di permesso — il promemoria sui file e i comandi sensibili auto-approvava proprio le
+# operazioni piu' delicate. Ora da' solo contesto: il permesso segue il suo corso normale.
 # 6° ciclo, set 3 (2026-08-24): esteso a Bash — il varco documentato nella voce SAL del
 # 5° ciclo: l'hook copriva Edit|Write ma "non copre il modo in cui si è lavorato oggi
 # (clasp deploy, probe su BC)". Un COMANDO che stampa/legge segreti (printenv, cat di
@@ -42,22 +45,32 @@ COMMAND="$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 # promemoria esisteva solo per il turno notturno (morning-gate), mai per una
 # sessione diurna che edita molto senza toccare SAL.md. Contatore per directory di
 # lavoro: dopo 5 edit senza SAL.md, il promemoria entra nel contesto (mai un blocco).
+# (2026-09-24, notte dei giri, T6#5): il contatore era della CARTELLA, e l'avvio di qualunque sessione
+# (metodo-reminder, SessionStart) cancellava quelli di tutte le cartelle — una sessione aperta in
+# un'altra repo azzerava quella in corso qui. Ora il file porta anche la sessione («<session_id> <n>»):
+# un'altra sessione non lo tocca, una sessione nuova nella stessa cartella riparte da zero.
+SESSIONE="$(jq -r '.session_id // "senza-sessione"' <<<"$INPUT" 2>/dev/null)"
+sal_conteggio() { # il numero di edit di QUESTA sessione in questa cartella (0 se di un'altra sessione)
+  local sid n
+  read -r sid n < "/tmp/ai-programmer-sal-counter.$(sal_hash "$PWD")" 2>/dev/null || { echo 0; return; }
+  [ "$sid" = "$SESSIONE" ] && [ "${n:-x}" -ge 0 ] 2>/dev/null && echo "$n" || echo 0
+}
 sal_promemoria() {
   local stato="/tmp/ai-programmer-sal-counter.$(sal_hash "$PWD")"
   case "$FILE_PATH" in
-    */SAL.md|SAL.md) : > "$stato" 2>/dev/null; return 1 ;;
+    */SAL.md|SAL.md) echo "$SESSIONE 0" > "$stato" 2>/dev/null; return 1 ;;
   esac
   [ -f "$PWD/SAL.md" ] || return 1
   local n
-  n=$(($(cat "$stato" 2>/dev/null || echo 0) + 1))
-  echo "$n" > "$stato" 2>/dev/null
+  n=$(( $(sal_conteggio) + 1 ))
+  echo "$SESSIONE $n" > "$stato" 2>/dev/null
   [ $((n % 5)) -eq 0 ] || return 1
   return 0
 }
 
 # ramo Bash: comandi che toccano/printano materiale sensibile
 if [ -n "$COMMAND" ] && [ -z "$FILE_PATH" ]; then
-  echo "$COMMAND" | grep -qiE '\.env|id_rsa|id_ed25519|\.pem|\.key|printenv|/usr/bin/security|keychain|repos\.key|Authorization:|Bearer |api[_-]?key|ZHIPUAI_API_KEY|GH_TOKEN' || exit 0
+  grep -qiE '\.env|id_rsa|id_ed25519|\.pem|\.key|printenv|/usr/bin/security|keychain|repos\.key|Authorization:|Bearer |api[_-]?key|ZHIPUAI_API_KEY|GH_TOKEN' <<<"$COMMAND" || exit 0
   HITS_B=""
   [ -f "$REGISTRO" ] && HITS_B="$(grep -E '^\| \[' "$REGISTRO" | grep -iE 'segreto|credenzial|token' | head -5)"
   if [ -n "$HITS_B" ]; then
@@ -66,7 +79,7 @@ $HITS_B"
   else
     CTX_B="Il comando tocca materiale sensibile — vale comunque CLAUDE.md \"Never expose secrets\" / \"Mask, don't omit\" / \"One-shot secret handoff\"."
   fi
-  jq -n --arg ctx "$CTX_B" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",additionalContext:$ctx}}'
+  jq -n --arg ctx "$CTX_B" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}'
   exit 0
 fi
 
@@ -79,7 +92,7 @@ fi
 # promemorio SAL gli si ACCODA (mai sostituisce).
 
 CTX_SENS=""
-if echo "$FILE_PATH" | grep -qiE 'auth|secret|credential|credenzial|token|login|password|segret'; then
+if grep -qiE 'auth|secret|credential|credenzial|token|login|password|segret' <<<"$FILE_PATH"; then
   HITS=""
   if [ -f "$REGISTRO" ]; then
     HITS="$(grep -E '^\| \[' "$REGISTRO" | grep -iE 'segreto|credenzial|token' | head -5)"
@@ -94,7 +107,7 @@ fi
 
 CTX_SAL=""
 if sal_promemoria; then
-  CTX_SAL="Hai fatto $(( $(cat "/tmp/ai-programmer-sal-counter.$(sal_hash "$PWD")" 2>/dev/null || echo 0) )) edit e SAL.md non è tra questi — se in questo giro c'è una scoperta o una correzione, va scritta in SAL.md PRIMA del passo successivo (CLAUDE.md 'keep living documentation' + PROJECT.md del progetto). Un promemoria, non un blocco."
+  CTX_SAL="Hai fatto $(sal_conteggio) edit e SAL.md non è tra questi — se in questo giro c'è una scoperta o una correzione, va scritta in SAL.md PRIMA del passo successivo (CLAUDE.md 'keep living documentation' + PROJECT.md del progetto). Un promemoria, non un blocco."
 fi
 
 [ -z "$CTX_SENS" ] && [ -z "$CTX_SAL" ] && exit 0
@@ -103,4 +116,4 @@ $CTX_SAL"
 [ "$CTX" = "
 " ] && exit 0
 
-jq -n --arg ctx "$CTX" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",additionalContext:$ctx}}'
+jq -n --arg ctx "$CTX" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}'

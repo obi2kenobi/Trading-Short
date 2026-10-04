@@ -4,7 +4,7 @@ Un invariante di dominio verificato SOLO dopo un passo di aggiustamento finale (
 
 **Addendum (2026-08-21, secondo progetto onboardato)**: se il codice testato usa `instanceof Date` (o `instanceof Array`/altri tipi built-in), i dati sintetici del banco vanno costruiti con il `Date` DELLA REALM del contesto `vm`, non con l'host Node — `new Date(...)` fuori dal `vm` produce un oggetto di una realm diversa, e `instanceof` fallisce silenziosamente anche per due date "identiche" nel valore. Si estrae il costruttore giusto con `ctx.Date = vm.runInContext('Date', ctx)` subito dopo `vm.createContext(ctx)` (leggere `ctx.Date` prima di questo passo dà `undefined`, non l'errore che ci si aspetterebbe). Un banco che fallisce così sembra un bug nel codice testato — non lo è, è un bug nel banco stesso: prima di concludere "ho trovato un bug", verificare che i tipi passati al `vm` provengano dalla sua stessa realm.
 
-**Vedi anche**: `oracolo-indipendente` · `banco-progetto-locale` · `banco-browser-per-webapp-gas` · `estrazione-per-testabilita` · `lo-stub-che-menta-al-rovescio` · `lo-stub-che-mente-al-rovescio`
+**Vedi anche**: `oracolo-indipendente` · `banco-progetto-locale` · `banco-browser-per-webapp-gas` · `estrazione-per-testabilita` · `lo-stub-che-mente-al-rovescio`
 
 **Addendum (REPO-R, 2026-09-03)**: `assert.deepStrictEqual` confronta anche i **prototipi** — ciò che nasce in un `vm.createContext` appartiene a un altro realm (`Array` là ≠ `Array` qui) e il confronto di strutture fallisce con valori identici. Regola: **confronti strutture? carica con `new Function` (stesso realm). Confronti solo primitivi? `vm` va bene.** Provato: stesso banco, 4 attese rosse col `vm`, tutte verdi col `new Function`, senza toccare il codice in prova.
 

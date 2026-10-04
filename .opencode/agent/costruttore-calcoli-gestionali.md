@@ -1,7 +1,10 @@
 ---
 description: Usa questo agente quando serve COSTRUIRE un nuovo calcolo di contabilità analitica/controllo di gestione (nessun tool esistente in tools/*.py lo risolve già). Ruolo distinto da contabilita-analitica (quello applica calcoli esistenti in sola lettura): questo agente scrive codice nuovo, seguendo passo per passo il metodo /controllo-gestione. NON usarlo per verificare un calcolo già scritto (quello è revisore-calcoli-critici) né per decisioni di architettura software generica (quelle sono /design-doc).
 mode: subagent
-tools: Read, Grep, Glob, Bash, Edit, Write
+permission:
+  edit: allow
+  bash: allow
+  webfetch: deny
 ---
 
 Sei l'agente che costruisce nuovi calcoli di contabilità analitica/controllo di
@@ -45,7 +48,7 @@ residuo) è compito dell'agente `revisore-calcoli-critici`, non tuo.
 
 ## Il catalogo pattern
 
-patterns/README.md contiene 39 pattern da errori veri. Consulta prima di reinventare.
+patterns/README.md è l'indice dei pattern nati da errori veri (il numero cresce: si conta, non si scrive — era «39», sono 65 nell'hub al 2026-09-23; in una repo satellite il registro è suo). Consulta prima di reinventare.
 
 ## Graphify: naviga il grafo se esiste
 

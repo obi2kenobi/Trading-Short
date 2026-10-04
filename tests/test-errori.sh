@@ -16,7 +16,17 @@ ko() { FAIL=$((FAIL+1)); echo "FAIL $1"; }
 [ -f "$HERE/.claude/skills/post-mortem/SKILL.md" ] && ok "la skill del protocollo esiste" || ko "skill post-mortem assente"
 
 N_VOCI=$(grep -c "^## E-" "$REG")
-[ "$N_VOCI" -ge 1 ] && ok "voci a regime: $N_VOCI" || ko "registro vuoto"
+# (2026-09-24, notte dei giri, T1#6): era «almeno una voce» — un satellite appena nato riceve lo
+# scheletro del registro (zero voci) ed era rosso dal primo giorno. La regola vera: il registro non si
+# svuota mai (append-only). Zero voci sono lecite se HEAD non ne aveva; meno voci di HEAD e' rosso.
+N_HEAD=$(git -C "$HERE" show "HEAD:docs/errori/REGISTRO.md" 2>/dev/null | grep -c "^## E-")
+if [ "$N_VOCI" -lt "${N_HEAD:-0}" ]; then
+  ko "voci tolte dal registro: $N_VOCI contro le $N_HEAD di HEAD (il registro e' append-only)"
+elif [ "$N_VOCI" -ge 1 ]; then
+  ok "voci a regime: $N_VOCI"
+else
+  ok "registro senza voci: nessun errore registrato ancora (repo nuova, dichiarato)"
+fi
 
 CAMPI=("Data / sessione:" "Famiglia:" "Sintomo:" "Causa prossima:" \
        "Causa del ragionamento:" "Perché non ci ha fermati:" "Guardia:" \
@@ -26,7 +36,10 @@ while IFS= read -r voce; do
   BLOCCO=$(awk -v ini="$voce" 'index($0, ini)==1 {p=1; next} p && /^## E-/ {exit} p {print}' "$REG")
   MANCA=""
   for c in "${CAMPI[@]}"; do
-    echo "$BLOCCO" | grep -q "^- $c" || MANCA="$MANCA $c"
+    # (2026-09-23, E-042): era `echo "$BLOCCO" | grep -q` — sotto pipefail, con la macchina
+    # carica, grep -q esce alla prima riga e l'echo prende SIGPIPE: un campo PRESENTE risultava
+    # mancante (catturato: «E-032: mancanti: Guardia:», 2 rossi su 120 a quattro in parallelo).
+    grep -q "^- $c" <<<"$BLOCCO" || MANCA="$MANCA $c"
   done
   [ -z "$MANCA" ] && ok "$ID: sette campi + famiglia completi" || ko "$ID: mancanti:$MANCA"
   # (2026-09-09, report REPO-V): dalle voci dal 24 in poi, il campo «Chi l'ha trovato:»
@@ -34,7 +47,7 @@ while IFS= read -r voce; do
   # Le voci storiche restano come sono: il passato non si riscrive per la regola nuova.
   N=$(echo "$ID" | grep -oE '[0-9]+')
   if [ "$N" -ge 24 ] 2>/dev/null; then
-    echo "$BLOCCO" | grep -q "^- Chi l'ha trovato:" \
+    grep -q "^- Chi l'ha trovato:" <<<"$BLOCCO" \
       && ok "$ID: chi l'ha trovato dichiarato" \
       || ko "$ID: manca «Chi l'ha trovato:» (lente / vivo / padrone del dominio — obbligatorio da E-024)"
   fi

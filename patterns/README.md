@@ -24,9 +24,9 @@ documenti (DEBITI: da valutare se vale i token).
 | [collisione-namespace-globale-gas](collisione-namespace-globale-gas.md) | REPO-Q 2026-09-02 | 2026-09-02 |
 | [confronto-non-vuoto](confronto-non-vuoto.md) | tests/test-opencode-agent-sync.sh:corpo() | 2026-08-28 |
 | [contenitore-che-riscrive](contenitore-che-riscrive.md) | REPO-W: Foglio.gs isoDaCella_/valoreDiCella_ (report: docs/campo/2026-09-05-repo-w-quattordici-giri-revisione.md) | 2026-09-05 |
-| [copertura-dal-glob](copertura-dal-glob.md) | questo hub: tests/test-skills-structure.sh, .night-verify | 2026-08-23 |
+| [copertura-dal-glob](copertura-dal-glob.md) | questo hub: tests/test-agents-structure.sh, .night-verify | 2026-08-23 |
 | [csv-con-python](csv-con-python.md) | night-shift/gate-summary.sh | 2026-08-21 |
-| [cuore-unico-proprietario](cuore-unico-proprietario.md) | night-shift/night-shift.sh (probe/kickstart) | 2026-08-21 |
+| [cuore-unico-proprietario](cuore-unico-proprietario.md) | night-shift/lib.sh:rianima_ollama | 2026-08-21 |
 | [diagnosi-differenziale-webapp-gas](diagnosi-differenziale-webapp-gas.md) | REPO-E deploy v74 | 2026-09-02 |
 | [dipendenza-tra-rami-paralleli](dipendenza-tra-rami-paralleli.md) | REPO-H: 2 occorrenze auto-corrette | 2026-08-27 |
 | [doppio-livello-escaping](doppio-livello-escaping.md) | REPO-K: Scripts.html escapeJsAttr | 2026-08-28 |
@@ -35,16 +35,16 @@ documenti (DEBITI: da valutare se vale i token).
 | [esegui-non-leggere](esegui-non-leggere.md) | standard di verifica (SAL/dev-critic) | 2026-08-21 |
 | [estensione-testata-non-distruttiva](estensione-testata-non-distruttiva.md) | REPO-G: Sheets.js estendiHeaderSeManca_ | 2026-08-27 |
 | [estrattore-test-dipendenza-refactor](estrattore-test-dipendenza-refactor.md) | REPO-G: test-computeperiod.js estraiFunzioneRigaSingola | 2026-08-27 |
-| [estrazione-llm-spezzata](estrazione-llm-spezzata.md) | Centrale_Rischi loops/2026-08-28 (spike misurato) | 2026-08-29 |
+| [estrazione-llm-spezzata](estrazione-llm-spezzata.md) | REPO-CR apps-script/Pipeline.gs (Centrale_Rischi) | 2026-08-29 |
 | [estrazione-per-testabilita](estrazione-per-testabilita.md) | REPO-I: quasi ogni fix del ciclo 2026-08-27 | 2026-08-27 |
 | [forma-dei-dati-verificata](forma-dei-dati-verificata.md) | .github/ISSUE_TEMPLATE/night-shift.md | 2026-08-21 |
-| [gas-vivo-definitivo](gas-vivo-definitivo.md) | skills/allineamento-fork (regola 1) | 2026-08-29 |
+| [gas-vivo-definitivo](gas-vivo-definitivo.md) | .claude/skills/allineamento-fork/SKILL.md (regola 1) | 2026-08-29 |
 | [guardia-nel-ponte-non-nella-condivisa](guardia-nel-ponte-non-nella-condivisa.md) | REPO-F: AccessoWeb.gs (incidente 2026-08-15) | 2026-08-27 |
 | [il-precedente-porta-il-vincolo-pagato](il-precedente-porta-il-vincolo-pagato.md) | REPO-Q 2026-09-02 | 2026-09-02 |
 | [itera-su-array](itera-su-array.md) | night-shift/night-shift.sh (ROWS) | 2026-08-19 |
 | [jq-slurp](jq-slurp.md) | night-shift/morning-gate.sh | 2026-08-21 |
 | [la-riga-di-default-e-il-caso-peggiore](la-riga-di-default-e-il-caso-peggiore.md) | REPO-S: app/web/src/Configurator.tsx:185,1201 | 2026-09-03 |
-| [la-staffetta](la-staffetta.md) | .ciclo/findings_storico + PRESIDI.md | 2026-08-31 |
+| [la-staffetta](la-staffetta.md) | tools/ciclo-vivo.sh (memoria) + tools/presidio.sh | 2026-08-31 |
 | [lettura-esecuzione-precedente](lettura-esecuzione-precedente.md) | REPO-I: 5 moduli indipendenti | 2026-08-28 |
 | [link-assoluti-e-decodifica-robusta](link-assoluti-e-decodifica-robusta.md) | REPO-CR doGet | 2026-09-01 |
 | [lo-stub-che-mente-al-rovescio](lo-stub-che-mente-al-rovescio.md) | Controlli-trimestrali PR #103 | 2026-09-01 |
@@ -56,7 +56,7 @@ documenti (DEBITI: da valutare se vale i token).
 | [numero-col-suo-comando](numero-col-suo-comando.md) | REPO-E: report di campo 2026-09-06 (le 798 attese non riproducibili) | 2026-09-06 |
 | [oracolo-dal-sistema-vecchio](oracolo-dal-sistema-vecchio.md) | REPO-S: tools/motore-test/harness.php | 2026-09-03 |
 | [oracolo-indipendente](oracolo-indipendente.md) | REPO-A: tools/grafo-verifica.js (assi C/D) | 2026-08-21 |
-| [pipefail-grep-sigpipe](pipefail-grep-sigpipe.md) | tools/ciclo-vivo.sh (lente collegamenti) | 2026-08-28 |
+| [pipefail-grep-sigpipe](pipefail-grep-sigpipe.md) | tools/e002-siti.py:siti | 2026-08-28 |
 | [ponte-branch-usa-e-getta](ponte-branch-usa-e-getta.md) | REPO-J: live-snapshot via GitHub | 2026-08-28 |
 | [presidio-senza-consumatori](presidio-senza-consumatori.md) | REPO-S: engine meta.warnings (zero consumatori) | 2026-09-03 |
 | [regola-provata-non-assunta](regola-provata-non-assunta.md) | REPO-A: tools/test-motore.js:eq + blocco vm | 2026-07-30 |

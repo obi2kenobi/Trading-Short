@@ -58,7 +58,7 @@ invece di procedere.
 
 ## Il catalogo pattern
 
-patterns/README.md contiene 39 pattern da errori veri. Consulta prima di reinventare.
+patterns/README.md è l'indice dei pattern nati da errori veri (il numero cresce: si conta, non si scrive — era «39», sono 65 nell'hub al 2026-09-23; in una repo satellite il registro è suo). Consulta prima di reinventare.
 
 ## Graphify: naviga il grafo se esiste
 

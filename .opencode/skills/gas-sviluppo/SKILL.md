@@ -1,7 +1,10 @@
 ---
 name: gas-sviluppo
-description: Il sistema generale per sviluppare e revisionare progetti Google Apps Script gestionali (contabilità, magazzino, ciclo attivo/passivo, controllo di gestione, produzioni) — il metodo e le famiglie di difetti MISURATE sul parco reale di ~90 progetti REPO-E, non buon senso generico. Due modalità distinte, CONSULENZA (rispondere a una domanda tecnica: basta il decision tree) e CONSEGNA (produrre un diff che va in produzione: serve anche l'isolamento, la prova di parità e il cancello umano) — confonderle è il modo più facile di fare danni. Fonte: la skill gas-agent di REPO-E (v0.1.0, 95 file, misure 2026-08 su tutto il parco), portata qui in forma distillata con provenienza — l'autorità piena resta là. Usa per qualsiasi sviluppo GAS: nuovo progetto, feature, correzione, revisione, integrazione Business Central, sicurezza, performance. I sub-file si caricano SOLO quando servono (disclosure progressiva): references/metodo.md sempre, references/consegna.md solo per consegne, references/famiglie-difetti.md quando si tocca codice esistente, references/domini-gestionali.md per i calcoli del dominio.
+description: Il sistema generale per sviluppare e revisionare progetti Google Apps Script gestionali (contabilità, magazzino, ciclo attivo/passivo, controllo di gestione, produzioni) — il metodo e le famiglie di difetti MISURATE sul parco reale di ~90 progetti REPO-E, non buon senso generico. Due modalità distinte, CONSULENZA (rispondere a una domanda tecnica: basta il decision tree) e CONSEGNA (produrre un diff che va in produzione: serve anche l'isolamento, la prova di parità e il cancello umano) — confonderle è il modo più facile di fare danni. Usa per qualsiasi sviluppo GAS: nuovo progetto, feature, correzione, revisione, integrazione Business Central, sicurezza, performance. I sub-file si caricano SOLO quando servono (disclosure progressiva): references/metodo.md sempre, references/consegna.md solo per consegne, references/famiglie-difetti.md quando si tocca codice esistente, references/domini-gestionali.md per i calcoli del dominio.
 ---
+
+> **Provenienza** (spostata qui dalla descrizione il 2026-09-24, T6#8: la descrizione resta sotto i 1024 caratteri della specifica Agent Skills):
+> Fonte: la skill gas-agent di REPO-E (v0.1.0, 95 file, misure 2026-08 su tutto il parco), portata qui in forma distillata con provenienza — l'autorità piena resta là.
 
 # gas-sviluppo — il parco già pagato, portato negli agenti
 
@@ -52,7 +55,7 @@ cosa serve, le domande di dominio da fare a una persona).
 
 ## Gli oracoli e i tool dell'hub
 
-tools/ contiene 16 tool Python: 11 oracoli contabili, 2 rilevatori (gas_qualita, verifica_banco), indice BC e correttore tipi.
+tools/ contiene 17 tool Python: 11 oracoli contabili, 2 rilevatori (gas_qualita, verifica_banco), 3 per Business Central (bc_map che interroga, bc_index che indicizza, bc_tipi_metadata che corregge i tipi) e la dashboard — conteggio del 2026-09-23 (`ls tools/*.py`; qui diceva 16 e ne elencava 15).
 
 ## Il primo artefatto: le domande, non il codice
 

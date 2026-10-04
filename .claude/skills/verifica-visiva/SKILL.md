@@ -30,9 +30,10 @@ Google già autenticata nel browser che lo strumento controlla. Senza questo:
    "exception", pagina vuota sotto una soglia di caratteri) — se ne trova uno, lo script esce
    1 e lo dice, anche se lo screenshot si è salvato correttamente. Uno screenshot preso non è
    uno screenshot buono.
-3. Se esiste uno screenshot precedente allo stesso percorso logico (stesso nome, run
-   precedente), confrontane le dimensioni file come primo indizio grezzo di "è cambiato
-   qualcosa" — non un diff pixel-perfect, solo un segnale povero ma gratuito.
+3. Se esiste uno screenshot precedente allo stesso percorso (stesso nome, run precedente), lo
+   strumento lo sposta in `<nome>.prima.png` prima di scattare, e stampa «prima N byte → dopo M
+   byte» come primo indizio grezzo di "è cambiato qualcosa" — non un diff pixel-perfect, solo un
+   segnale povero ma gratuito. I due PNG restano affiancati per l'occhio umano.
 4. Allega il PNG al report del gate (o mandalo con SendUserFile se sei in una sessione
    interattiva) — non descriverlo a parole: chi legge deve vederlo.
 
@@ -50,7 +51,7 @@ Google già autenticata nel browser che lo strumento controlla. Senza questo:
 ## 3. Limite dichiarato
 
 Non eseguibile da una sessione senza clasp/OAuth locale (es. questa sessione cloud, al
-momento della sua scrittura, 2026-08-21): verificato che il meccanismo Playwright/Chromium
+momento della sua scrittura, 2026-08-21): verificato che il meccanismo Chromium headless
 funziona nell'ambiente (screenshot di una pagina locale), non verificato contro un vero
 deploy Apps Script — richiede il Mac con la sessione Google autenticata.
 

@@ -1,7 +1,12 @@
 ---
 name: dev-critic
-description: Trova punti deboli, debito tecnico, buchi di sicurezza (allowlist bucabili, segreti esposti — lente sicurezza sempre applicata, §2bis), errori nelle formule di calcolo matematico-finanziarie (quadrature/plug che nascondono un residuo vero, non solo di arrotondamento — lente §2ter) e nuove funzionalità non considerate in uno script, uno strumento o un intero progetto — nel hub AI_Programmer o in un progetto onboardato (es. REPO-C) — combinando lettura critica del codice con un tentativo REALE di usarlo (dogfooding), non solo ispezione statica. Fa anche critica costruttiva propositiva: idee di sviluppo non ancora coperte, confrontando lo scope dichiarato (PROJECT.md/SAL.md/README) con quello implementato. Usa quando l'utente chiede di trovare nuove idee o funzionalità mancanti, criticare o revisionare uno script/progetto in modo approfondito, capire cosa manca prima di svilupparlo oltre, o invoca /dev-critic esplicitamente. Non sostituisce code-review (bug nel diff corrente) né simplify (pulizia del codice cambiato): questo guarda l'intero target, comprese le funzionalità che NON esistono ancora. Non sostituisce nemmeno `audit-commessa` (5° ciclo, set 3 giro 8, 2026-08-23 — la relazione era dichiarata solo da quella parte, non da questa): quello guarda SOLO le commesse night-shift già in coda, pre-flight prima della notte; questo guarda l'intero progetto per gap non ancora considerati, prima che diventino commesse.
+description: Trova punti deboli, debito tecnico, buchi di sicurezza (allowlist bucabili, segreti esposti — lente sicurezza sempre applicata, §2bis), errori nelle formule di calcolo matematico-finanziarie (quadrature/plug che nascondono un residuo vero, non solo di arrotondamento — lente §2ter) e nuove funzionalità non considerate in uno script, uno strumento o un intero progetto, combinando lettura critica e un tentativo REALE di usarlo (dogfooding), non solo ispezione statica. Anche propositiva: scope dichiarato (PROJECT.md/SAL.md/README) contro implementato. Usa quando l'utente chiede di trovare nuove idee o funzionalità mancanti, criticare o revisionare uno script/progetto in modo approfondito, capire cosa manca prima di svilupparlo oltre, o invoca /dev-critic esplicitamente. Non sostituisce code-review (bug nel diff corrente) né simplify (pulizia del codice cambiato): questo guarda l'intero target, comprese le funzionalità che NON esistono ancora. Non sostituisce audit-commessa (solo le commesse già in coda).
 ---
+
+> **Provenienza** (spostata qui dalla descrizione il 2026-09-24, T6#8: la descrizione resta sotto i 1024 caratteri della specifica Agent Skills):
+> 5° ciclo, set 3 giro 8, 2026-08-23 — la relazione era dichiarata solo da quella parte, non da questa
+> Dove: nel hub AI_Programmer o in un progetto onboardato (es. REPO-C).
+> Rispetto ad `audit-commessa`: quello guarda SOLO le commesse night-shift già in coda, pre-flight prima della notte; questo guarda l'intero progetto per gap non ancora considerati, prima che diventino commesse.
 
 # dev-critic — critico e scopritore di sviluppo
 
@@ -63,6 +68,10 @@ comando (bypassabile con `bash -c`/`python3 -c`), e `credenziali BC.rtf` è fini
 nella storia git di un progetto onboardato. Nessuno dei due è stato trovato leggendo il
 codice per la prima intenzione — solo provando ad aggirarlo o ispezionando cosa contiene
 davvero il repo prima di toccarlo. Applica sempre, non solo se il target "sembra" sensibile:
+
+> **Automatica sulle PR della notte** (D2, decisione di Luca 2026-09-23): `tools/lente-sicurezza.sh`
+> gira su ogni PR creata dal turno (`lente_pr` in `night-shift/lib.sh`, rapporto come commento
+> della PR) e il censore non fonde se non e' PULITA. Qui sotto la lente completa, per il giorno.
 
 - **Se il target esegue codice generato da un LLM** (banco avversariale, agenti che
   eseguono comandi): una blacklist per parola chiave non basta — verifica se un interprete
