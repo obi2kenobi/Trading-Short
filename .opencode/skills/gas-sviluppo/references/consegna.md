@@ -16,10 +16,12 @@ correttore nasce in git worktree add proprio, dal primo commit.
 file; se due task toccano lo stesso file sono UN task (o si serializzano). Il
 conflitto si evita per costruzione, non si risolve dopo.
 
+Il ramo comincia con `claude/` (o `glm/`, se lavora quel cervello): un altro prefisso, come `fix/`, nessun
+giudice lo vede (CLAUDE.md §4). Si apre il worktree, si lavora lì dentro, e a PR chiusa lo si toglie:
+
 ```bash
-git worktree add ../wt-<slug-task> -b fix/<slug-task>
-# ... lavoro isolato ...
-git worktree remove ../wt-<slug-task>   # a PR chiusa
+git worktree add ../wt-<slug-task> -b claude/<slug-task>
+git worktree remove ../wt-<slug-task>
 ```
 
 ## Il ciclo
