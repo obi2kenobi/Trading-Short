@@ -16,7 +16,8 @@ while IFS= read -r f; do
   TROVATE=$((TROVATE+1))
   base=$(basename "$f")
   if [ -f "$ESC" ] && grep -qxF "$base" "$ESC"; then continue; fi
-  if [ -f "$f.provenienza" ] || head -5 "$f" | grep -qi "prodotto da:"; then
+  _cp=$(head -5 "$f") || true
+  if [ -f "$f.provenienza" ] || grep -qi "prodotto da:" <<<"$_cp"; then
     continue
   fi
   echo "  fixture senza provenienza: $f"
