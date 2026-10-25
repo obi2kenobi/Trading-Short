@@ -18,9 +18,13 @@ l'utente non specifica quali, prendi tutte le `night-shift` open del repo indica
 
 ## 1. Metodo — per ogni commessa
 
-1. **Struttura del template.** Verifica che la issue abbia `## Design` (obbligatoria: il
-   turno salta le issue senza, `.github/ISSUE_TEMPLATE/night-shift.md`) e `## Commessa`. Se
-   manca `## Design`, fermati qui — non ha senso auditare i dati di una commessa che la
+1. **Struttura del template — col cancello vero del turno.** Non con una lista tua: esegui
+   `bash -c 'source night-shift/lib.sh; cancello_design "$(gh issue view N -R owner/repo --json body -q .body)"'`
+   dall'hub. Stampa il motivo per cui la notte salterebbe l'issue (territorio-assente, design-assente,
+   design-povero, design-senza-fonte, territorio-vago) o niente se passa (`night-shift/lib.sh`,
+   `cancello_design`). (2026-09-24, terzo ventaglio, V3: qui si guardavano solo `## Design` e
+   `## Commessa`, e la skill promuoveva commesse che il cancello poi respingeva.) Verifica anche
+   `## Commessa`. Se il cancello stampa un motivo, fermati qui — non ha senso auditare i dati di una commessa che la
    notte non toccherebbe comunque — e **dillo con un commento sulla issue stessa** (non nel
    body, che resta di chi la possiede): cosa manca, che l'audit dei dati non procede finché
    non c'è, senza chiudere né correggere altro (trovato ambiguo al Giro 4 dei test

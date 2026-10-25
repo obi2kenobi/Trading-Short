@@ -61,7 +61,7 @@ decide non è il nome della categoria ma QUANTO PESO HA LA FORMULA nel codice
 reale del dominio. Ricetta rapida (minuti, non letture integrali):
 
 1. `grep -c "function" progetto/*.js` — quante funzioni esistono;
-2. `grep -nE "calcola|somma|soglia|tasso|percent|importo" progetto/*.js | grep -v "^\s*//"` — quante fanno ARITMETICA di dominio (non I/O, non filtro);
+2. `grep -hE "calcola|somma|soglia|tasso|percent|importo" progetto/*.js | grep -vE '^[[:space:]]*//' | wc -l` — quante fanno ARITMETICA di dominio (non I/O, non filtro). `-h` toglie il prefisso `file:`, che altrimenti impedisce al filtro dei commenti di combaciare, e la classe POSIX vale anche col grep del Mac (2026-09-24, V3#6);
 3. se la risposta è "per lo più filtri/esclusioni/controlli di coerenza", il
    dominio vuole un PROGETTO (`sviluppatore-gas`) o un censimento
    (`revisore-gas`), non un oracolo Python: un oracolo per un dominio a densità

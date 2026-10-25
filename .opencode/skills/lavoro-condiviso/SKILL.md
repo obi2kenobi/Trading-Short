@@ -7,9 +7,11 @@ description: Usa questa skill quando sul repo lavorano DUE O PIÙ persone o sess
 
 ## 1. Prima di iniziare: guarda e dichiara
 
+Chi c'è adesso, e su cosa; poi la tua presenza, che scade da sé dopo 4 ore:
+
 ```
-bash tools/presidio.sh lista            # chi c'è adesso, e su cosa
-bash tools/presidio.sh claim <zona> <nota>   # la tua presenza (4h, poi scade da sé)
+bash tools/presidio.sh lista
+bash tools/presidio.sh claim <zona> <nota>
 ```
 
 La zona è il pezzo che toccherai («oracoli», «skill gas-sviluppo», «agente
@@ -29,7 +31,7 @@ iniziare il processing, `rilascia` a fine commit.
 
 | Classe | File | Due mani insieme |
 |---|---|---|
-| **Append-only** | SAL.md, docs/campo/*.md, PRESIDI.md | SICURO: merge union — entrambe le voci sopravvivono al merge, verificato |
+| **Append-only** | SAL.md, docs/campo/*.md, PRESIDI.md | SICURO: merge union — entrambe le voci sopravvivono al merge, verificato. In PRESIDI.md anche il rilascio è una riga appesa (dal 2026-09-24: prima cancellava, e un merge riportava in vita il presidio rilasciato) |
 | **Codice** | tools/, skills/, agents/ | SU RAMI: una mano un ramo una PR; il presidio evita di partire due volte sullo stesso punto |
 | **Stato locale** | .ciclo/, .campo-rem (gitignored) | OGNI CLONE IL SUO: il ciclo di Luca non vede quello di Lavinia — e va bene così |
 

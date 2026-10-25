@@ -1,6 +1,6 @@
 # edifact-release-character
 **Àncora**: REPO-J (Gestione-ordini-REPO-J) Parsers.gs:77 (repo esterna, non in questo hub) content.split("'") —
-report: docs/campo/2026-08-28-REPO-J-50-agenti.md §1.7 · **Nato**: 2026-08-28
+report: docs/campo/2026-08-28-bricoman-50-agenti.md §1.7 · **Nato**: 2026-08-28
 
 Lo standard EDIFACT prevede il carattere di rilascio ? seguito dal delimitatore
 per rappresentare il delimitatore STESSO dentro un dato: L?'Aquila e un apice

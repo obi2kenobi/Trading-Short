@@ -13,7 +13,7 @@
 set -uo pipefail
 DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 [ -d "$DIR" ] || { echo "⛔ gas-gate: dir inesistente: $DIR" >&2; exit 2; }
-cd "$DIR"
+cd -- "$DIR" || exit 2   # (sesto ventaglio, S3 R6): «--», e senza cd riuscito non si giudica la cartella del chiamante
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 N=0; KO=0
 while IFS= read -r f; do
@@ -28,7 +28,18 @@ while IFS= read -r f; do
 done < <(git ls-files '*.gs')
 while IFS= read -r f; do
   [ -n "$f" ] || continue
-  sed -n '/<script>/,/<\/script>/p' "$f" | sed '1d;$d' > "$TMP/h.js"
+  # (revisione 10 giri, 2026-09-23): `sed '/<script>/,…' | sed '1d;$d'` vedeva solo i tag
+  # nudi e toglieva solo il primo e l'ultimo — con piu' blocchi i tag interni restavano nel JS
+  # (falso KO) e un <script type="…"> non veniva letto. Ora: ogni blocco inline, attributi o
+  # no (esclusi quelli con src, che non hanno corpo nostro), uno dopo l'altro.
+  python3 - "$f" > "$TMP/h.js" <<'PYSCR'
+import re, sys
+html = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+for attrs, corpo in re.findall(r"<script(\s[^>]*)?>(.*?)</script>", html, flags=re.S | re.I):
+    if attrs and re.search(r"\bsrc\s*=", attrs, re.I):
+        continue
+    print(corpo)
+PYSCR
   [ -s "$TMP/h.js" ] || continue
   N=$((N+1))
   if node --check "$TMP/h.js" 2>"$TMP/err"; then

@@ -1,7 +1,7 @@
 # misura-la-deriva-prima-di-assumerla
 **Àncora**: REPO-J (REPO-J) — diff contro la baseline pre-fix 56e559d, non
 contro HEAD che includeva i fix mai deployati: 11 file sembravano divergenti,
-3 lo erano davvero (report: docs/campo/2026-08-28-REPO-J-git-live-drift.md) ·
+3 lo erano davvero (report: docs/campo/2026-08-28-bricoman-git-live-drift.md) ·
 **Nato**: 2026-08-28
 
 Quando un mandato implica «tratta il live come autoritativo e correggi tutto

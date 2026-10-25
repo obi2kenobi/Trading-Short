@@ -83,5 +83,5 @@ Formato (append a `docs/errori/REGISTRO.md`, mai riscritto):
 ```
 
 Chiude la voce solo chi ha visto la guardia diventare rossa sul proprio
-errore. La lente `tests/test-errori.sh` controlla che ogni voce abbia i sette
-campi, la famiglia canonica, e che il file della guardia esista.
+errore. La lente `tests/test-errori.sh` controlla che ogni voce abbia gli otto
+campi (i sette numerati più «Chi l'ha trovato»), la data, la famiglia canonica, e che il file della guardia esista.

@@ -1,7 +1,10 @@
 ---
 name: brainstorming
-description: Raffina una richiesta vaga in requisiti concreti PRIMA che qualcuno scriva codice o un design-doc — domande socratiche, una alla volta, senza proporre soluzioni finché il problema non è chiaro. Nato da un incidente reale documentato in docs/test-processo-2026-08-21.md: il primo tentativo di sviluppare una feature nuova è stato "pattern-matching, non progettazione" (un bottone gemello copiato invece di una domanda di dominio) perché l'operatore aveva saltato questo passo — citato ovunque in METHOD.md/docs/system.md come prima fase della pipeline ("/brainstorming → /design-doc → commessa") ma mai implementato come file (stesso debito già chiuso per /design-doc). Usa quando l'utente porta un'idea vaga ("servirebbe qualcosa per X", "vorrei migliorare Y") prima di passare a /design-doc o scrivere codice, o invoca /brainstorming esplicitamente. Non sostituisce /design-doc (quello struttura opzioni già chiare, confrontandole su criteri espliciti); questo arriva prima, quando non è ancora chiaro COSA si vuole davvero.
+description: Raffina una richiesta vaga in requisiti concreti PRIMA che qualcuno scriva codice o un design-doc — domande socratiche, una alla volta, senza proporre soluzioni finché il problema non è chiaro. Usa quando l'utente porta un'idea vaga ("servirebbe qualcosa per X", "vorrei migliorare Y") prima di passare a /design-doc o scrivere codice, o invoca /brainstorming esplicitamente. Non sostituisce /design-doc (quello struttura opzioni già chiare, confrontandole su criteri espliciti); questo arriva prima, quando non è ancora chiaro COSA si vuole davvero.
 ---
+
+> **Provenienza** (spostata qui dalla descrizione il 2026-09-24, T6#8: la descrizione resta sotto i 1024 caratteri della specifica Agent Skills):
+> Nato da un incidente reale documentato in docs/test-processo-2026-08-21.md: il primo tentativo di sviluppare una feature nuova è stato "pattern-matching, non progettazione" (un bottone gemello copiato invece di una domanda di dominio) perché l'operatore aveva saltato questo passo — citato ovunque in METHOD.md/docs/system.md come prima fase della pipeline ("/brainstorming → /design-doc → commessa") ma mai implementato come file (stesso debito già chiuso per /design-doc).
 
 # brainstorming — le domande prima delle risposte
 
@@ -126,7 +129,7 @@ LISTA numerata con la provocazione che l'ha generata (P4: ...) — poi si
 attraversa la lista con i criteri del dominio (valore, costo, rischio), non
 con l'entusiasmo. Il passaggio a commessa/design-doc resta lo stesso del §3.
 
-### Quando l'utente dice «decidi tu su tutto» (dal campo Golilla, 2026-09-01)
+### Quando l'utente dice «decidi tu su tutto» (dal campo Fornitore-N, 2026-09-01)
 
 La delega esplicita della decisione NON è un permesso di indovinare. Il triage per ogni
 questione delegata: (a) **implementa** se è difesa-in-profondità, reversibile, e non richiede

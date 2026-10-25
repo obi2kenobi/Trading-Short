@@ -1,7 +1,10 @@
 ---
 name: controllo-gestione
-description: Ancora un problema matematico-contabile (contabilità analitica, di magazzino, controllo di gestione, margini, cespiti) ai dati e alle formule REALI di Gruppo Camarlinghi prima di scrivere codice — mai indovinare una formula di business. Nato dal Set 1 "agenti" del 4° ciclo di auto-miglioramento (2026-08-23): un censimento di REPO-E (repo esterno, cartella gas-src/, ~90 progetti Google Apps Script reali) ha trovato una decina di calcoli di controllo di gestione già implementati (scostamento standard/effettivo, valorizzazione magazzino, roll-forward cespiti, margini per fattura) ma nessun metodo condiviso per affrontarne uno NUOVO senza reinventare la logica. Generalizza per questo dominio lo stesso schema già in uso ad-hoc per Business Central in PROJECT.md ("censimento campi prima dell'analisi" + "riscontro"). Usa quando una richiesta implica calcolare/riconciliare/analizzare una cifra contabile o gestionale reale (non un esempio didattico) per Gruppo Camarlinghi. Non sostituisce /design-doc (quello decide un'architettura software, non tocca la correttezza di un numero); non sostituisce /brainstorming (quello chiarisce cosa serve, questo assume il problema chiaro e ancora la formula ai dati reali prima che tocchino cifre finanziarie).
+description: Ancora un problema matematico-contabile (contabilità analitica, di magazzino, controllo di gestione, margini, cespiti) ai dati e alle formule REALI di Gruppo Camarlinghi prima di scrivere codice — mai indovinare una formula di business. Usa quando una richiesta implica calcolare/riconciliare/analizzare una cifra contabile o gestionale reale (non un esempio didattico) per Gruppo Camarlinghi. Non sostituisce /design-doc (quello decide un'architettura software, non tocca la correttezza di un numero); non sostituisce /brainstorming (quello chiarisce cosa serve, questo assume il problema chiaro e ancora la formula ai dati reali prima che tocchino cifre finanziarie).
 ---
+
+> **Provenienza** (spostata qui dalla descrizione il 2026-09-24, T6#8: la descrizione resta sotto i 1024 caratteri della specifica Agent Skills):
+> Nato dal Set 1 "agenti" del 4° ciclo di auto-miglioramento (2026-08-23): un censimento di REPO-E (repo esterno, cartella gas-src/, ~90 progetti Google Apps Script reali) ha trovato una decina di calcoli di controllo di gestione già implementati (scostamento standard/effettivo, valorizzazione magazzino, roll-forward cespiti, margini per fattura) ma nessun metodo condiviso per affrontarne uno NUOVO senza reinventare la logica. Generalizza per questo dominio lo stesso schema già in uso ad-hoc per Business Central in PROJECT.md ("censimento campi prima dell'analisi" + "riscontro").
 
 # controllo-gestione — la formula si trova, non si indovina
 
@@ -61,9 +64,9 @@ Una richiesta di calcolo/riconciliazione/analisi su una cifra contabile o gestio
 - La formula e la sua fonte (oracolo citato per file:riga, o la conferma del proprietario
   del dominio se non esisteva) vanno in un commento nel tool stesso E in una voce di
   `SAL.md` — non solo in uno dei due, altrimenti chi legge il codice fra sei mesi non sa
-  se la formula era verificata o assunta. Nei file versionati di questo hub pubblico,
-  cita il repo esterno per codice anonimo (es. REPO-E), mai per nome — la mappatura reale
-  vive solo in `night-shift/repos.key` (locale, gitignored).
+  se la formula era verificata o assunta. Il repo esterno si cita per nome o per il codice
+  storico (es. REPO-E): dal 2026-09-23 i nomi possono comparire, resta proibito l'ACCESSO
+  (CLAUDE.md §«Public repo, private work» — i codici anonimi sono ritirati).
 - Se il calcolo lavora su un endpoint BC, la mappatura del campo usato deve esistere in
   `docs/bc/endpoints/<Nome>.md` — se non c'è ancora, va prima censita (vedi `PROJECT.md`),
   non assunta al volo dentro il nuovo tool.

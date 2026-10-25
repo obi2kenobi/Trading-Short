@@ -88,7 +88,7 @@ negativo).
 
 Una proposta sono QUATTRO cose: il dato che già c'è (misurato), la decisione
 che cambia, il costo, cosa la renderebbe utile. L'anti-rischio: «una proposta
-che richiede un dato che nessuno racclie è un desiderio».
+che richiede un dato che nessuno raccoglie è un desiderio».
 
 ## Documenti e integrazioni — le domande del confine
 
