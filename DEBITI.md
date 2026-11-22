@@ -1,5 +1,11 @@
 # DEBITI.md — il registro delle scorciatoie rimandate
 
+> **Nota di revisione G7 (2026-11-22):** registro di canone/metodo importato dall'hub.
+> Le voci citano `night-shift/lib.sh`, `night-shift/night-shift.sh`, `night-shift/morning-gate.sh`,
+> `bc_map.py`, `bc_index.py`, `docs/bc/endpoints`, `tests/test-bc-index.sh`, `docs/system.md`:
+> tutti ASSENTI in questa repo (verificato `ls -e`). Leggere come cronologia di un altro contesto
+> (hub), non come debiti aperti di Trading-Short.
+
 Ogni scorciatoia deliberatamente rimandata (regola §2, da ponytail) si scrive qui:
 cosa, perché è stata rimandate, quando va saldata. "Poi" non deve diventare "mai".
 

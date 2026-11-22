@@ -1,0 +1,17 @@
+# Elenco documenti GUIDA scelti per la revisione (mandato G7, 2026-11-22)
+# Criterio: README*, CLAUDE.md, AGENTS.md, CHANGELOG*, RUNBOOK*, ARCHITETTURA* + .md a radice
+# o in docs/ (profondita<=2), esclusi file in cartelle di prove/giri/log/revisioni-datate.
+# Ordine: data ultimo commit decrescente. Attenzione: clone shallow (1 commit 8f60797, 2026-10-04),
+# quindi TUTTI i file hanno la stessa data 2026-10-04; tiebreak: guida a radice prima, poi docs/.
+# Nessun AGENTS.md / CHANGELOG* / RUNBOOK* / ARCHITETTURA* presente nella repo.
+
+# 2026-10-04  (radice, guida vivente)
+CLAUDE.md
+DEBITI.md
+# 2026-10-04  (docs/, guida vivente)
+docs/campo/README.md
+docs/ngiri-paralleli.md
+patterns/README.md
+# 2026-10-04  (docs/, DATATO -> archiviare se smentito)
+docs/REVISIONE-2026-09-22.md
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md

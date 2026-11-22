@@ -1,0 +1,46 @@
+file	classe	affermazione	atteso	trovato	esito
+CLAUDE.md	DA CORREGGERE	Riapertura debiti: comando tools/debiti-riapertura.sh	il file esiste	tools/debiti-riapertura.sh presente (ls -e)	OK
+CLAUDE.md	DA CORREGGERE	Lente privacy tools/privacy-check.sh corre in .night-verify	entrambi esistono	tools/privacy-check.sh e .night-verify presenti (ls -e)	OK
+CLAUDE.md	DA CORREGGERE	Reference del mascheramento: patterns/segreto-come-impronta.md	il file esiste	patterns/segreto-come-impronta.md presente (ls -e)	OK
+CLAUDE.md	DA CORREGGERE	Metodo night shift in night-shift/README.md e cervello locale in llm/ask-qwen.sh	entrambi esistono	night-shift/ e llm/ assenti (ls -e)	DIVERSO
+CLAUDE.md	DA CORREGGERE	Contesto progetto in PROJECT.md e mappa sistema in docs/system.md	entrambi esistono	PROJECT.md e docs/system.md assenti (ls -e)	DIVERSO
+CLAUDE.md	DA CORREGGERE	Deriva fork misurata con tools/fork-stato.sh	il file esiste	tools/fork-stato.sh assente (ls -e)	DIVERSO
+DEBITI.md	DA CORREGGERE	Registro debiti; conteggio con tools/debiti-riapertura.sh	il file esiste	tools/debiti-riapertura.sh presente (ls -e)	OK
+DEBITI.md	DA CORREGGERE	SALDATA: .claude/skills/design-doc/SKILL.md implementato	il file esiste	presente (ls -e)	OK
+DEBITI.md	DA CORREGGERE	SALDATA: matcher Edit|Write|Bash in .claude/settings.json (tools/pattern-reminder-hook.sh)	entrambi esistono	presenti (ls -e)	OK
+DEBITI.md	DA CORREGGERE	Riferito night-shift/lib.sh, night-shift/night-shift.sh, night-shift/morning-gate.sh	i file esistono	night-shift/ assente (ls -e)	DIVERSO
+DEBITI.md	DA CORREGGERE	Riferito bc_map.py e bc_index.py su docs/bc/endpoints e tests/test-bc-index.sh	i file esistono	tutti assenti (ls -e)	DIVERSO
+DEBITI.md	DA CORREGGERE	Riferito docs/system.md (annotazioni di processo)	il file esiste	docs/system.md assente (ls -e)	DIVERSO
+docs/campo/README.md	DA CORREGGERE	Formato report docs/campo/YYYY-MM-DD-slug.md	cartella con report	docs/campo/ presente con 1 report + README (ls)	OK
+docs/campo/README.md	DA CORREGGERE	Tre report manuali del 2026-08 (REPO-G, tagli, REPO-F)	3 report 2026-08 in docs/campo	solo 1 report (2026-09-22), nessun report 2026-08 (ls docs/campo)	DIVERSO
+docs/campo/README.md	DA CORREGGERE	Il SAL non cita il report (SAL.md)	SAL.md esiste	SAL.md assente (ls -e)	DIVERSO
+docs/campo/README.md	DA CORREGGERE	Report di esempio 2026-09-22-onboarding-e-dev-critic-trading-short.md	il file esiste	presente (ls)	OK
+docs/campo/README.md	DA CORREGGERE	Contesti di campo REPO-G e REPO-H (2026-08-27)	i report di campo esistono	nessun report REPO-G/REPO-H nella repo (ls docs/campo)	DIVERSO
+patterns/README.md	DA CORREGGERE	Registro pattern coerente col numero di file	righe registro = file pattern	65 righe e 65 file .md coerenti (ls+grep)	OK
+patterns/README.md	DA CORREGGERE	Pattern allowlist-per-segmento ancora night-shift/lib.sh:gate_allowlist_ok	anchor esiste	night-shift/lib.sh assente (ls -e)	DIVERSO
+patterns/README.md	DA CORREGGERE	Pattern citazione-non-presidio ancora tools/pattern-strumenti.js:senzaControllo	anchor esiste	tools/pattern-strumenti.js assente (ls -e)	DIVERSO
+patterns/README.md	DA CORREGGERE	Pattern segreto-come-impronta ancora tools/maschera-segreti.js:mascheraSegreti	anchor esiste	tools/maschera-segreti.js assente (ls -e)	DIVERSO
+patterns/README.md	DA CORREGGERE	File pattern segreto-come-impronta e banco-sintetico-per-calcoli-critici presenti	i file esistono	entrambi presenti (ls -e)	OK
+patterns/README.md	DA CORREGGERE	La ricerca e il registro (indicizzazione nel grafo da valutare)	il registro e presente	registro presente, 65 righe (grep)	OK
+docs/ngiri-paralleli.md	DA CORREGGERE	Ancora docs/campo/2026-08-27-controlli-trimestrali.md (19/19 findings)	il file esiste	assente (ls -e)	DIVERSO
+docs/ngiri-paralleli.md	DA CORREGGERE	REPO-I: 15 aree, 30 agenti, batch da 10, 8 temi trasversali	verificabile nella repo	contesto hub REPO-I, non presente nella repo	NON-VERIFICABILE
+docs/ngiri-paralleli.md	DA CORREGGERE	Doppia fase: 35 scoperta + 15 verifica, 13 confermati 2 smentiti (REPO-J)	verificabile nella repo	contesto hub REPO-J, non presente nella repo	NON-VERIFICABILE
+docs/ngiri-paralleli.md	DA CORREGGERE	Tassonomia a quattro categorie provata su 245 casi	verificabile nella repo	dati hub, non presenti nella repo	NON-VERIFICABILE
+docs/ngiri-paralleli.md	DA CORREGGERE	Riferito docs/campo/2026-09-09-repo-v-settimana-errori-del-programmatore.md	il file esiste	assente (ls -e)	DIVERSO
+docs/REVISIONE-2026-09-22.md	SUPERATO	D1 griglia sl_pct a optimize.py:315	griglia sl_pct a :315	optimize.py:315 sl_pct [0.01 0.015 0.02 0.025 0.03]	OK
+docs/REVISIONE-2026-09-22.md	SUPERATO	D9 profit_factor 99.0 a optimize.py:264	99.0 a :264	optimize.py:264 pf else 99.0	OK
+docs/REVISIONE-2026-09-22.md	SUPERATO	D2 panic 40 (backtest.py:150) e strong-bear 25 (:151)	valori 40/25	backtest.py:150 pd.Series(40), :151 =25	OK
+docs/REVISIONE-2026-09-22.md	SUPERATO	D8 np.roll look-ahead a optimize.py:116 e :119	np.roll a :116 e :119	optimize.py:116 np.roll(rsi,1), :119 np.roll(red_bar,1/2)	OK
+docs/REVISIONE-2026-09-22.md	SUPERATO	S1 default_qty_value 90 a TEMA pine:25-27	90 a :26	TEMA pine:26 default_qty_value = 90	OK
+docs/REVISIONE-2026-09-22.md	SUPERATO	P3 pattern fixture-provenienza.md e lente tools/fixture-provenienza.sh	entrambi esistono	tools/fixture-provenienza.sh presente; patterns/fixture-provenienza.md assente	DIVERSO
+docs/REVISIONE-2026-09-22.md	SUPERATO	Provenienza git: commit b54bf82 e cf2d9ae, PR 57	presenti nella storia	clone shallow (1 commit 8f60797), hash assenti	NON-VERIFICABILE
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	tools/sync-repo.sh --standard usato (non raggiungibile dal cloud)	il file esiste	tools/sync-repo.sh assente (ls -e)	DIVERSO
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	tools/garante-standard.sh usato	il file esiste	presente (ls -e)	OK
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	tools/copia-hook.sh ha derivato 3 hook	il file esiste	tools/copia-hook.sh assente (ls -e)	DIVERSO
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	docs/benvenuto-collaboratori.md percorso insegnato	il file esiste	assente (ls -e)	DIVERSO
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	tools/cita-verifica.sh OK su 40+ citazioni	il file esiste	presente (ls -e)	OK
+docs/campo/2026-09-22-onboarding-e-dev-critic-trading-short.md	SUPERATO	tools/privacy-check.sh GATE DEGRADATO perche manca night-shift/repos.key	privacy-check presente; night-shift/repos.key assente	tools/privacy-check.sh presente; night-shift/ assente (coerente)	OK
+.claude/	NON-REVISIONATO	Cartella configurazione agenti/skill (hub), non guida	da revisionare in un secondo giro	24 file .md, non verificati	NON-VERIFICABILE
+.opencode/	NON-REVISIONATO	Specchio di .claude + plugin graphify.js, non guida	da revisionare in un secondo giro	24 file .md + 1 .js, non verificati	NON-VERIFICABILE
+patterns/	NON-REVISIONATO	Catalogo pattern: README e guida, i 65 file pattern non revisionati	da revisionare in un secondo giro	65 file .md, non verificati	NON-VERIFICABILE
+docs/errori/	NON-REVISIONATO	Registro errori (log append), non guida	da revisionare in un secondo giro	1 file .md (REGISTRO.md), non verificato	NON-VERIFICABILE

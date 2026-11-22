@@ -1,5 +1,11 @@
 # patterns/ — i trucchi ancorati
 
+> **Nota di revisione G7 (2026-11-22):** il catalogo è coerente (65 voci = 65 file `.md`,
+> verificato `ls`+`grep`), ma gli ANCOR puntano perlopiù a codice dell'hub ASSENTE qui
+> (verificato `ls -e`): `night-shift/lib.sh`, `tools/pattern-strumenti.js`, `tools/maschera-segreti.js`,
+> ecc. Trattare i pattern come vocabolario di canone; l'ancora è cross-repo e non riproducibile
+> in Trading-Short finché il codice hub non è presente.
+
 Ogni pattern è uno snippet/rule **provato**, con l'ÀNCORA al codice che lo usa (file:funzione)
 e la lezione che l'ha creato. Regola ereditata da `pattern-strumenti.js` di REPO-A:
 **l'ancora deve esistere, o la voce non sopravvive** — lo snippet non ancorato è folklore.

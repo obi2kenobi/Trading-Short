@@ -1,5 +1,10 @@
 # Report dal campo — come si è comportato AI_Programmer, a ogni uso
 
+> **Nota di revisione G7 (2026-11-22):** in questa repo `docs/campo/` contiene UN solo report
+> (`2026-09-22-onboarding-e-dev-critic-trading-short.md`): i "tre report del 2026-08" e i contesti
+> `REPO-G`/`REPO-H`/`SAL.md` sono hub assenti (verificato `ls`). Il formato qui descritto resta
+> il riferimento valido per i prossimi report.
+
 > Ogni sessione che usa il metodo chiude con un report qui: `docs/campo/YYYY-MM-DD-<slug>.md`.
 > Serve a migliorare il sistema a ogni sviluppo: i tre report manuali del 2026-08
 > (REPO-G, tagli, REPO-F) hanno prodotto più correzioni vere di qualsiasi revisione a tavolo.

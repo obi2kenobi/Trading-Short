@@ -1,5 +1,11 @@
 # CLAUDE.md — Standard Working Rules
 
+> **Nota di revisione G7 (2026-11-22):** documento di canone/metodo importato dall'hub.
+> I riferimenti `night-shift/`, `llm/`, `PROJECT.md`, `docs/system.md`, `tools/fork-stato.sh`
+> sono infrastrutture dell'hub ASSENTI in questa repo (verificato `ls -e`): leggerli come
+> riferimento, non come cablaggio vivo di Trading-Short. Le regole (privacy, debito, comunicazione,
+> git) restano valide per qualsiasi sessione in questa repo.
+
 
 ## Il debito si brucia alla riapertura (settimo patto)
 

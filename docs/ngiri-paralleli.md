@@ -1,5 +1,10 @@
 # N giri paralleli — il workflow dichiarativo (dal campo REPO-I, 2026-08-27)
 
+> **Nota di revisione G7 (2026-11-22):** le ancora `docs/campo/2026-08-27-controlli-trimestrali.md`
+> e `docs/campo/2026-09-09-repo-v-settimana-errori-del-programmatore.md` sono ASSENTI (verificato
+> `ls -e`), e `REPO-I`/`REPO-J`/"245 casi" sono contesto hub non presente in questa repo.
+> Il workflow descritto resta utile come modello; i numeri di campo non sono riproducibili qui.
+
 Struttura fissa, contenuto per progetto:
 
 1. DIVIDI il progetto in AREE (REPO-I: 15) — nessuna esclusa, o dichiara l esclusione.
