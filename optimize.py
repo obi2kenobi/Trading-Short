@@ -412,6 +412,9 @@ for _, row in filtered.iterrows():
 print("\n" + "=" * 70)
 print("  DETTAGLIO — CONFIGURAZIONE MIGLIORE (Score)")
 print("=" * 70)
+if filtered.empty:
+    print("  Nessuna configurazione con >=15 trade: dettaglio non disponibile.")
+    exit()
 best = filtered.iloc[0]
 print(f"""
   TP ATR Multiplier:     {best['tp_atr_mult']}x
