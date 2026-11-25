@@ -74,3 +74,5 @@ NON VERIFICATO (non eseguito in questa sessione):
 - Esecuzione dei 7 `.py` e delle 2 strategie Pine: non eseguiti (rete/interprete non disponibili).
 - NON-REVISIONATI (da un secondo giro): `.claude/` (24 .md), `.opencode/` (24 .md + 1 .js),
   `patterns/` (66 .md), `docs/errori/REGISTRO.md`. Vederli nel file `docs/_revisione.tsv` (colonna classe).
+
+Istruzioni d'uso di ogni software (comandi, requisiti, problemi noti): `docs/ISTRUZIONI.md`.
