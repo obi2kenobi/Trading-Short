@@ -220,14 +220,6 @@ def run_backtest(data, tp_atr_mult, sl_pct, trail_atr_mult,
                 tp_dist = atr14[i] * tp_atr_mult * regime_mult[i]
                 tp_price = entry_price - tp_dist
         else:
-            lowest = min(lowest, low[i])
-
-            # Trailing
-            trail_mult = 1.8 if is_strong_bear[i] else (1.3 if is_bear[i] else 1.0)
-            new_trail = lowest + atr14[i] * trail_atr_mult * trail_mult
-            if new_trail < stop_price:
-                stop_price = new_trail
-
             # TP hit
             if low[i] <= tp_price:
                 pnl = (entry_price - tp_price) / entry_price * 100
@@ -243,6 +235,14 @@ def run_backtest(data, tp_atr_mult, sl_pct, trail_atr_mult,
                 trades_reason.append('SL')
                 in_pos = False
                 continue
+
+            lowest = min(lowest, low[i])
+
+            # Trailing
+            trail_mult = 1.8 if is_strong_bear[i] else (1.3 if is_bear[i] else 1.0)
+            new_trail = lowest + atr14[i] * trail_atr_mult * trail_mult
+            if new_trail < stop_price:
+                stop_price = new_trail
 
             # Emergency
             if rsi[i] > 65:

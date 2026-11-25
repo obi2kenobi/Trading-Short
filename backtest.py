@@ -209,21 +209,6 @@ def run_backtest(df, tp_atr_mult=1.5, sl_pct=0.02, trail_atr_mult=1.5):
                     'regime_mult': entry_regime,
                 })
         else:
-            # Update trailing
-            lowest_since_entry = min(lowest_since_entry, df['Low'].iloc[i])
-
-            # Trail regime multiplier
-            if is_strong_bear.iloc[i]:
-                tr_mult = 1.8
-            elif is_bear.iloc[i]:
-                tr_mult = 1.3
-            else:
-                tr_mult = 1.0
-
-            new_trail = lowest_since_entry + atr14.iloc[i] * trail_atr * tr_mult
-            if new_trail < stop_price:
-                stop_price = new_trail
-
             # Check TP hit (intrabar: low reached TP)
             if df['Low'].iloc[i] <= tp_price:
                 exit_price = tp_price  # limit order fills at exact price
@@ -245,6 +230,21 @@ def run_backtest(df, tp_atr_mult=1.5, sl_pct=0.02, trail_atr_mult=1.5):
                 trades[-1]['pnl_pct'] = pnl_pct
                 in_position = False
                 continue
+
+            # Update trailing
+            lowest_since_entry = min(lowest_since_entry, df['Low'].iloc[i])
+
+            # Trail regime multiplier
+            if is_strong_bear.iloc[i]:
+                tr_mult = 1.8
+            elif is_bear.iloc[i]:
+                tr_mult = 1.3
+            else:
+                tr_mult = 1.0
+
+            new_trail = lowest_since_entry + atr14.iloc[i] * trail_atr * tr_mult
+            if new_trail < stop_price:
+                stop_price = new_trail
 
             # Emergency exit: RSI > 65
             if rsi.iloc[i] > 65:
