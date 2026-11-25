@@ -25,7 +25,7 @@ pip install yfinance pandas numpy
 - Verifica pre-turno: `./.night-verify`
 
 ## Struttura
-- `patterns/`: catalogo pattern/metodo (65 file .md)
+- `patterns/`: catalogo pattern/metodo (66 file .md)
 - `docs/`: guida LLM, campo, errori, archivio
 - `tools/`: script di governance (py-gate, gas-gate, privacy-check, ...)
 - `tests/`: `test-errori.sh` (lente per guardie del registro errori)

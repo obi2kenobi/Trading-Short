@@ -15,7 +15,7 @@ soglia panic, composizione del punteggio, prezzo d'ingresso e 3 dei 5 meccanismi
 I numeri prodotti da `optimize.py` descrivono una strategia diversa da quella deployata in Pine.
 
 ## 2. Struttura (dal grafo ~/graphify-out/Trading-Short/graph.json: 857 nodi, 811 link, 0 failed)
-- `patterns/` (65 file .md): catalogo di pattern/metodo; gli ANCOR sono cross-repo (vedi §6).
+- `patterns/` (66 file .md): catalogo di pattern/metodo; gli ANCOR sono cross-repo (vedi §6).
 - `.claude/` e `.opencode/` (24 file .md ciascuno): specchi quasi identici di config agenti+skill (hub).
 - `docs/`: guida vivente + `docs/errori/REGISTRO.md` (registro errori) + `docs/archivio/` (superati).
 - `tools/` (11 script .sh): gate di governance del metodo (py-gate, gas-gate, privacy-check, ...).
@@ -73,4 +73,4 @@ NON VERIFICATO (non eseguito in questa sessione):
 - Clone shallow (1 commit `8f60797`): la storia git (hash `b54bf82`, `cf2d9ae`, PR #57) non e' accessibile.
 - Esecuzione dei 7 `.py` e delle 2 strategie Pine: non eseguiti (rete/interprete non disponibili).
 - NON-REVISIONATI (da un secondo giro): `.claude/` (24 .md), `.opencode/` (24 .md + 1 .js),
-  `patterns/` (65 .md), `docs/errori/REGISTRO.md`. Vederli nel file `docs/_revisione.tsv` (colonna classe).
+  `patterns/` (66 .md), `docs/errori/REGISTRO.md`. Vederli nel file `docs/_revisione.tsv` (colonna classe).
