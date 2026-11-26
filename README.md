@@ -38,3 +38,4 @@ pip install yfinance pandas numpy
 Nessun requirements.txt; chiavi/segreti non sono presenti nel repo. I numeri dei backtest dipendono dal giorno di lancio (`period="2y"`) e non sono riproducibili. Le strategie Pine non sono eseguibili fuori TradingView.
 
 - Istruzioni d'uso di ogni software: [docs/ISTRUZIONI.md](docs/ISTRUZIONI.md)
+- Scheda tecnica: [docs/SCHEDA-TECNICA.md](docs/SCHEDA-TECNICA.md)

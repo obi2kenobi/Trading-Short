@@ -76,3 +76,5 @@ NON VERIFICATO (non eseguito in questa sessione):
   `patterns/` (66 .md), `docs/errori/REGISTRO.md`. Vederli nel file `docs/_revisione.tsv` (colonna classe).
 
 Istruzioni d'uso di ogni software (comandi, requisiti, problemi noti): `docs/ISTRUZIONI.md`.
+
+Scheda tecnica sintetica: `docs/SCHEDA-TECNICA.md`.
